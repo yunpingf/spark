@@ -65,9 +65,9 @@ class AsyncRDDActionsSuite extends SparkFunSuite with BeforeAndAfterAll with Tim
   test("foreachAsync") {
     zeroPartRdd.foreachAsync(i => Unit).get()
 
-    val accum = sc.longAccumulator
+    val accum = sc.accumulator(0)
     sc.parallelize(1 to 1000, 3).foreachAsync { i =>
-      accum.add(1)
+      accum += 1
     }.get()
     assert(accum.value === 1000)
   }
@@ -75,9 +75,9 @@ class AsyncRDDActionsSuite extends SparkFunSuite with BeforeAndAfterAll with Tim
   test("foreachPartitionAsync") {
     zeroPartRdd.foreachPartitionAsync(iter => Unit).get()
 
-    val accum = sc.longAccumulator
+    val accum = sc.accumulator(0)
     sc.parallelize(1 to 1000, 9).foreachPartitionAsync { iter =>
-      accum.add(1)
+      accum += 1
     }.get()
     assert(accum.value === 9)
   }

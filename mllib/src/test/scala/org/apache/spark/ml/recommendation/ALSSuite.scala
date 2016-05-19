@@ -39,10 +39,6 @@ import org.apache.spark.mllib.util.MLlibTestSparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.{SparkListener, SparkListenerStageCompleted}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-<<<<<<< HEAD
-=======
-import org.apache.spark.sql.types.{FloatType, IntegerType}
->>>>>>> apache/master
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.Utils
 
@@ -209,6 +205,7 @@ class ALSSuite
 
   /**
    * Generates an explicit feedback dataset for testing ALS.
+   *
    * @param numUsers number of users
    * @param numItems number of items
    * @param rank rank
@@ -249,6 +246,7 @@ class ALSSuite
 
   /**
    * Generates an implicit feedback dataset for testing ALS.
+   *
    * @param numUsers number of users
    * @param numItems number of items
    * @param rank rank
@@ -267,6 +265,7 @@ class ALSSuite
 
   /**
    * Generates random user/item factors, with i.i.d. values drawn from U(a, b).
+   *
    * @param size number of users/items
    * @param rank number of features
    * @param random random number generator
@@ -285,6 +284,7 @@ class ALSSuite
 
   /**
    * Test ALS using the given training/test splits and parameters.
+   *
    * @param training training dataset
    * @param test test dataset
    * @param rank rank of the matrix factorization
@@ -485,138 +485,6 @@ class ALSSuite
     }
     assert(getFactors(model.userFactors) === getFactors(model2.userFactors))
     assert(getFactors(model.itemFactors) === getFactors(model2.itemFactors))
-  }
-
-  test("input type validation") {
-    val spark = this.spark
-    import spark.implicits._
-
-    // check that ALS can handle all numeric types for rating column
-    // and user/item columns (when the user/item ids are within Int range)
-    val als = new ALS().setMaxIter(1).setRank(1)
-    Seq(("user", IntegerType), ("item", IntegerType), ("rating", FloatType)).foreach {
-      case (colName, sqlType) =>
-        MLTestingUtils.checkNumericTypesALS(als, spark, colName, sqlType) {
-          (ex, act) =>
-            ex.userFactors.first().getSeq[Float](1) === act.userFactors.first.getSeq[Float](1)
-        } { (ex, act, _) =>
-          ex.transform(_: DataFrame).select("prediction").first.getFloat(0) ~==
-            act.transform(_: DataFrame).select("prediction").first.getFloat(0) absTol 1e-6
-        }
-    }
-    // check user/item ids falling outside of Int range
-    val big = Int.MaxValue.toLong + 1
-    val small = Int.MinValue.toDouble - 1
-    val df = Seq(
-      (0, 0L, 0d, 1, 1L, 1d, 3.0),
-      (0, big, small, 0, big, small, 2.0),
-      (1, 1L, 1d, 0, 0L, 0d, 5.0)
-    ).toDF("user", "user_big", "user_small", "item", "item_big", "item_small", "rating")
-    withClue("fit should fail when ids exceed integer range. ") {
-      assert(intercept[IllegalArgumentException] {
-        als.fit(df.select(df("user_big").as("user"), df("item"), df("rating")))
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[IllegalArgumentException] {
-        als.fit(df.select(df("user_small").as("user"), df("item"), df("rating")))
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[IllegalArgumentException] {
-        als.fit(df.select(df("item_big").as("item"), df("user"), df("rating")))
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[IllegalArgumentException] {
-        als.fit(df.select(df("item_small").as("item"), df("user"), df("rating")))
-      }.getMessage.contains("was out of Integer range"))
-    }
-    withClue("transform should fail when ids exceed integer range. ") {
-      val model = als.fit(df)
-      assert(intercept[SparkException] {
-        model.transform(df.select(df("user_big").as("user"), df("item"))).first
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[SparkException] {
-        model.transform(df.select(df("user_small").as("user"), df("item"))).first
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[SparkException] {
-        model.transform(df.select(df("item_big").as("item"), df("user"))).first
-      }.getMessage.contains("was out of Integer range"))
-      assert(intercept[SparkException] {
-        model.transform(df.select(df("item_small").as("item"), df("user"))).first
-      }.getMessage.contains("was out of Integer range"))
-    }
-  }
-}
-
-class ALSCleanerSuite extends SparkFunSuite {
-  test("ALS shuffle cleanup standalone") {
-    val conf = new SparkConf()
-    val localDir = Utils.createTempDir()
-    val checkpointDir = Utils.createTempDir()
-    def getAllFiles: Set[File] =
-      FileUtils.listFiles(localDir, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).asScala.toSet
-    try {
-      conf.set("spark.local.dir", localDir.getAbsolutePath)
-      val sc = new SparkContext("local[2]", "test", conf)
-      try {
-        sc.setCheckpointDir(checkpointDir.getAbsolutePath)
-        // Test checkpoint and clean parents
-        val input = sc.parallelize(1 to 1000)
-        val keyed = input.map(x => (x % 20, 1))
-        val shuffled = keyed.reduceByKey(_ + _)
-        val keysOnly = shuffled.keys
-        val deps = keysOnly.dependencies
-        keysOnly.count()
-        ALS.cleanShuffleDependencies(sc, deps, true)
-        val resultingFiles = getAllFiles
-        assert(resultingFiles === Set())
-        // Ensure running count again works fine even if we kill the shuffle files.
-        keysOnly.count()
-      } finally {
-        sc.stop()
-      }
-    } finally {
-      Utils.deleteRecursively(localDir)
-      Utils.deleteRecursively(checkpointDir)
-    }
-  }
-
-  test("ALS shuffle cleanup in algorithm") {
-    val conf = new SparkConf()
-    val localDir = Utils.createTempDir()
-    val checkpointDir = Utils.createTempDir()
-    def getAllFiles: Set[File] =
-      FileUtils.listFiles(localDir, TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).asScala.toSet
-    try {
-      conf.set("spark.local.dir", localDir.getAbsolutePath)
-      val sc = new SparkContext("local[2]", "test", conf)
-      try {
-        sc.setCheckpointDir(checkpointDir.getAbsolutePath)
-        // Generate test data
-        val (training, _) = ALSSuite.genImplicitTestData(sc, 20, 5, 1, 0.2, 0)
-        // Implicitly test the cleaning of parents during ALS training
-        val spark = SparkSession.builder
-          .master("local[2]")
-          .appName("ALSCleanerSuite")
-          .getOrCreate()
-        import spark.implicits._
-        val als = new ALS()
-          .setRank(1)
-          .setRegParam(1e-5)
-          .setSeed(0)
-          .setCheckpointInterval(1)
-          .setMaxIter(7)
-        val model = als.fit(training.toDF())
-        val resultingFiles = getAllFiles
-        // We expect the last shuffles files, block ratings, user factors, and item factors to be
-        // around but no more.
-        val pattern = "shuffle_(\\d+)_.+\\.data".r
-        val rddIds = resultingFiles.flatMap { f =>
-          pattern.findAllIn(f.getName()).matchData.map { _.group(1) } }
-        assert(rddIds.toSet.size === 4)
-      } finally {
-        sc.stop()
-      }
-    } finally {
-      Utils.deleteRecursively(localDir)
-      Utils.deleteRecursively(checkpointDir)
-    }
   }
 }
 

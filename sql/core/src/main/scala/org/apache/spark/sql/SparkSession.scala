@@ -39,7 +39,7 @@ import org.apache.spark.sql.catalyst.plans.logical.{LocalRelation, LogicalPlan, 
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.execution.ui.SQLListener
-import org.apache.spark.sql.internal.{CatalogImpl, SessionState, SharedState}
+import org.apache.spark.sql.internal.{CatalogImpl, SessionState, SharedState, SQLConf}
 import org.apache.spark.sql.sources.BaseRelation
 import org.apache.spark.sql.types.{DataType, LongType, StructType}
 import org.apache.spark.sql.util.ExecutionListenerManager
@@ -478,8 +478,8 @@ class SparkSession private(
     // TODO: use MutableProjection when rowRDD is another DataFrame and the applied
     // schema differs from the existing schema on any field data type.
     val catalystRows = if (needsConversion) {
-      val encoder = RowEncoder(schema)
-      rowRDD.map(encoder.toRow)
+      val converter = CatalystTypeConverters.createToCatalystConverter(schema)
+      rowRDD.map(converter(_).asInstanceOf[InternalRow])
     } else {
       rowRDD.map{r: Row => InternalRow.fromSeq(r.toSeq)}
     }

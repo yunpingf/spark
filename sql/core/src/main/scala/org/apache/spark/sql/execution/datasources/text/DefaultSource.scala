@@ -152,3 +152,4 @@ class TextOutputWriter(path: String, dataSchema: StructType, context: TaskAttemp
     recordWriter.close(context)
   }
 }
+

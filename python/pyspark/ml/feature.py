@@ -352,7 +352,7 @@ class CountVectorizerModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`CountVectorizer`.
+    Model fitted by CountVectorizer.
 
     .. versionadded:: 1.6.0
     """
@@ -609,7 +609,7 @@ class IDF(JavaEstimator, HasInputCol, HasOutputCol, JavaMLReadable, JavaMLWritab
     """
 
     minDocFreq = Param(Params._dummy(), "minDocFreq",
-                       "minimum number of documents in which a term should appear for filtering",
+                       "minimum of documents in which a term should appear for filtering",
                        typeConverter=TypeConverters.toInt)
 
     @keyword_only
@@ -655,7 +655,7 @@ class IDFModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`IDF`.
+    Model fitted by IDF.
 
     .. versionadded:: 1.4.0
     """
@@ -1302,8 +1302,7 @@ class RegexTokenizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable,
 
     minTokenLength = Param(Params._dummy(), "minTokenLength", "minimum token length (>= 0)",
                            typeConverter=TypeConverters.toInt)
-    gaps = Param(Params._dummy(), "gaps", "whether regex splits on gaps (True) or matches tokens " +
-                 "(False)")
+    gaps = Param(Params._dummy(), "gaps", "whether regex splits on gaps (True) or matches tokens")
     pattern = Param(Params._dummy(), "pattern", "regex pattern (Java dialect) used for tokenizing",
                     typeConverter=TypeConverters.toString)
     toLowercase = Param(Params._dummy(), "toLowercase", "whether to convert all characters to " +
@@ -1550,7 +1549,7 @@ class StandardScalerModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`StandardScaler`.
+    Model fitted by StandardScaler.
 
     .. versionadded:: 1.4.0
     """
@@ -1642,7 +1641,7 @@ class StringIndexerModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`StringIndexer`.
+    Model fitted by StringIndexer.
 
     .. versionadded:: 1.4.0
     """
@@ -1908,7 +1907,7 @@ class VectorIndexer(JavaEstimator, HasInputCol, HasOutputCol, JavaMLReadable, Ja
     """
     .. note:: Experimental
 
-    Class for indexing categorical feature columns in a dataset of `Vector`.
+    Class for indexing categorical feature columns in a dataset of [[Vector]].
 
     This has 2 usage modes:
       - Automatically identify categorical features (default behavior)
@@ -2024,17 +2023,7 @@ class VectorIndexerModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`VectorIndexer`.
-
-    Transform categorical features to use 0-based indices instead of their original values.
-      - Categorical features are mapped to indices.
-      - Continuous features (columns) are left unchanged.
-
-    This also appends metadata to the output column, marking features as Numeric (continuous),
-    Nominal (categorical), or Binary (either continuous or categorical).
-    Non-ML metadata is not carried over from the input to the output column.
-
-    This maintains vector sparsity.
+    Model fitted by VectorIndexer.
 
     .. versionadded:: 1.4.0
     """
@@ -2307,7 +2296,7 @@ class Word2VecModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`Word2Vec`.
+    Model fitted by Word2Vec.
 
     .. versionadded:: 1.4.0
     """
@@ -2338,8 +2327,7 @@ class PCA(JavaEstimator, HasInputCol, HasOutputCol, JavaMLReadable, JavaMLWritab
     """
     .. note:: Experimental
 
-    PCA trains a model to project vectors to a lower dimensional space of the
-    top :py:attr:`k` principal components.
+    PCA trains a model to project vectors to a low-dimensional space using PCA.
 
     >>> from pyspark.ml.linalg import Vectors
     >>> data = [(Vectors.sparse(5, [(1, 1.0), (3, 7.0)]),),
@@ -2413,7 +2401,7 @@ class PCAModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`PCA`. Transforms vectors to a lower dimensional space.
+    Model fitted by PCA.
 
     .. versionadded:: 1.5.0
     """
@@ -2544,8 +2532,7 @@ class RFormulaModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`RFormula`. Fitting is required to determine the
-    factor levels of formula terms.
+    Model fitted by :py:class:`RFormula`.
 
     .. versionadded:: 1.5.0
     """
@@ -2637,7 +2624,7 @@ class ChiSqSelectorModel(JavaModel, JavaMLReadable, JavaMLWritable):
     """
     .. note:: Experimental
 
-    Model fitted by :py:class:`ChiSqSelector`.
+    Model fitted by ChiSqSelector.
 
     .. versionadded:: 2.0.0
     """

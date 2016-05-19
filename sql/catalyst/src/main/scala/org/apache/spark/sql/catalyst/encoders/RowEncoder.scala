@@ -70,7 +70,8 @@ object RowEncoder {
   private def serializerFor(
       inputObject: Expression,
       inputType: DataType): Expression = inputType match {
-    case dt if ScalaReflection.isNativeType(dt) => inputObject
+    case NullType | BooleanType | ByteType | ShortType | IntegerType | LongType |
+         FloatType | DoubleType | BinaryType | CalendarIntervalType => inputObject
 
     case p: PythonUserDefinedType => serializerFor(inputObject, p.sqlType)
 
@@ -150,11 +151,7 @@ object RowEncoder {
     case StructType(fields) =>
       val convertedFields = fields.zipWithIndex.map { case (f, i) =>
         val fieldValue = serializerFor(
-<<<<<<< HEAD
           GetExternalRowField(inputObject, i, externalDataTypeForInput(f.dataType)),
-=======
-          GetExternalRowField(inputObject, i, f.name, externalDataTypeForInput(f.dataType)),
->>>>>>> apache/master
           f.dataType
         )
         if (f.nullable) {
@@ -196,6 +193,7 @@ object RowEncoder {
 
   private def externalDataTypeFor(dt: DataType): DataType = dt match {
     case _ if ScalaReflection.isNativeType(dt) => dt
+    case CalendarIntervalType => dt
     case TimestampType => ObjectType(classOf[java.sql.Timestamp])
     case DateType => ObjectType(classOf[java.sql.Date])
     case _: DecimalType => ObjectType(classOf[java.math.BigDecimal])
@@ -204,6 +202,7 @@ object RowEncoder {
     case _: MapType => ObjectType(classOf[scala.collection.Map[_, _]])
     case _: StructType => ObjectType(classOf[Row])
     case udt: UserDefinedType[_] => ObjectType(udt.userClass)
+    case _: NullType => ObjectType(classOf[java.lang.Object])
   }
 
   private def deserializerFor(schema: StructType): Expression = {
@@ -223,7 +222,8 @@ object RowEncoder {
   }
 
   private def deserializerFor(input: Expression): Expression = input.dataType match {
-    case dt if ScalaReflection.isNativeType(dt) => input
+    case NullType | BooleanType | ByteType | ShortType | IntegerType | LongType |
+         FloatType | DoubleType | BinaryType | CalendarIntervalType => input
 
     case udt: UserDefinedType[_] =>
       val annotation = udt.userClass.getAnnotation(classOf[SQLUserDefinedType])

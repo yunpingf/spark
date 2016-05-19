@@ -19,8 +19,7 @@ package org.apache.spark.ml.util
 
 import scala.collection.mutable
 
-import org.apache.spark.SparkContext
-import org.apache.spark.util.LongAccumulator;
+import org.apache.spark.{Accumulator, SparkContext}
 
 /**
  * Abstract class for stopwatches.
@@ -103,12 +102,12 @@ private[spark] class DistributedStopwatch(
     sc: SparkContext,
     override val name: String) extends Stopwatch {
 
-  private val elapsedTime: LongAccumulator = sc.longAccumulator(s"DistributedStopwatch($name)")
+  private val elapsedTime: Accumulator[Long] = sc.accumulator(0L, s"DistributedStopwatch($name)")
 
   override def elapsed(): Long = elapsedTime.value
 
   override protected def add(duration: Long): Unit = {
-    elapsedTime.add(duration)
+    elapsedTime += duration
   }
 }
 

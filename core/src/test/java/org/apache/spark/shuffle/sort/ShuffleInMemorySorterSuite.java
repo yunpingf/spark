@@ -26,7 +26,6 @@ import org.junit.Test;
 
 import org.apache.spark.HashPartitioner;
 import org.apache.spark.SparkConf;
-import org.apache.spark.memory.MemoryConsumer;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.memory.TestMemoryConsumer;
 import org.apache.spark.memory.TestMemoryManager;
@@ -72,8 +71,7 @@ public class ShuffleInMemorySorterSuite {
     final SparkConf conf = new SparkConf().set("spark.memory.offHeap.enabled", "false");
     final TaskMemoryManager memoryManager =
       new TaskMemoryManager(new TestMemoryManager(conf), 0);
-    final MemoryConsumer c = new TestMemoryConsumer(memoryManager);
-    final MemoryBlock dataPage = memoryManager.allocatePage(2048, c);
+    final MemoryBlock dataPage = memoryManager.allocatePage(2048, null);
     final Object baseObject = dataPage.getBaseObject();
     final ShuffleInMemorySorter sorter = new ShuffleInMemorySorter(
       consumer, 4, shouldUseRadixSort());

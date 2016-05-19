@@ -124,7 +124,7 @@ public final class UnsafeExternalSorter extends MemoryConsumer {
       long pageSizeBytes,
       @Nullable UnsafeInMemorySorter existingInMemorySorter,
       boolean canUseRadixSort) {
-    super(taskMemoryManager, pageSizeBytes, taskMemoryManager.getTungstenMemoryMode());
+    super(taskMemoryManager, pageSizeBytes);
     this.taskMemoryManager = taskMemoryManager;
     this.blockManager = blockManager;
     this.serializerManager = serializerManager;

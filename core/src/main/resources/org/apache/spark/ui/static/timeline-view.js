@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-function drawApplicationTimeline(groupArray, eventObjArray, startTime, offset) {
+function drawApplicationTimeline(groupArray, eventObjArray, startTime) {
   var groups = new vis.DataSet(groupArray);
   var items = new vis.DataSet(eventObjArray);
   var container = $("#application-timeline")[0];
@@ -26,10 +26,7 @@ function drawApplicationTimeline(groupArray, eventObjArray, startTime, offset) {
     editable: false,
     showCurrentTime: false,
     min: startTime,
-    zoomable: false,
-    moment: function (date) {
-      return vis.moment(date).utcOffset(offset);
-    }
+    zoomable: false
   };
 
   var applicationTimeline = new vis.Timeline(container);
@@ -90,7 +87,7 @@ $(function (){
   }
 });
 
-function drawJobTimeline(groupArray, eventObjArray, startTime, offset) {
+function drawJobTimeline(groupArray, eventObjArray, startTime) {
   var groups = new vis.DataSet(groupArray);
   var items = new vis.DataSet(eventObjArray);
   var container = $('#job-timeline')[0];
@@ -102,9 +99,6 @@ function drawJobTimeline(groupArray, eventObjArray, startTime, offset) {
     showCurrentTime: false,
     min: startTime,
     zoomable: false,
-    moment: function (date) {
-      return vis.moment(date).utcOffset(offset);
-    }
   };
 
   var jobTimeline = new vis.Timeline(container);
@@ -165,7 +159,7 @@ $(function (){
   }
 });
 
-function drawTaskAssignmentTimeline(groupArray, eventObjArray, minLaunchTime, maxFinishTime, offset) {
+function drawTaskAssignmentTimeline(groupArray, eventObjArray, minLaunchTime, maxFinishTime) {
   var groups = new vis.DataSet(groupArray);
   var items = new vis.DataSet(eventObjArray);
   var container = $("#task-assignment-timeline")[0]
@@ -179,10 +173,7 @@ function drawTaskAssignmentTimeline(groupArray, eventObjArray, minLaunchTime, ma
     showCurrentTime: false,
     min: minLaunchTime,
     max: maxFinishTime,
-    zoomable: false,
-    moment: function (date) {
-      return vis.moment(date).utcOffset(offset);
-    }
+    zoomable: false
   };
 
   var taskTimeline = new vis.Timeline(container)

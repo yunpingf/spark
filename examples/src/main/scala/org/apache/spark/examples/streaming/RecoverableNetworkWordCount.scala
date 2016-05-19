@@ -23,12 +23,11 @@ import java.nio.charset.Charset
 
 import com.google.common.io.Files
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{Accumulator, SparkConf, SparkContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Seconds, StreamingContext, Time}
 import org.apache.spark.util.IntParam
-import org.apache.spark.util.LongAccumulator
 
 /**
  * Use this singleton to get or register a Broadcast variable.
@@ -55,13 +54,13 @@ object WordBlacklist {
  */
 object DroppedWordsCounter {
 
-  @volatile private var instance: LongAccumulator = null
+  @volatile private var instance: Accumulator[Long] = null
 
-  def getInstance(sc: SparkContext): LongAccumulator = {
+  def getInstance(sc: SparkContext): Accumulator[Long] = {
     if (instance == null) {
       synchronized {
         if (instance == null) {
-          instance = sc.longAccumulator("WordsInBlacklistCounter")
+          instance = sc.accumulator(0L, "WordsInBlacklistCounter")
         }
       }
     }
@@ -125,7 +124,7 @@ object RecoverableNetworkWordCount {
       // Use blacklist to drop words and use droppedWordsCounter to count them
       val counts = rdd.filter { case (word, count) =>
         if (blacklist.value.contains(word)) {
-          droppedWordsCounter.add(count)
+          droppedWordsCounter += count
           false
         } else {
           true

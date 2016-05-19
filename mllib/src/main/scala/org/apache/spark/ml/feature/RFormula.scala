@@ -194,9 +194,7 @@ object RFormula extends DefaultParamsReadable[RFormula] {
 
 /**
  * :: Experimental ::
- * Model fitted by [[RFormula]]. Fitting is required to determine the factor levels of
- * formula terms.
- *
+ * A fitted RFormula. Fitting is required to determine the factor levels of formula terms.
  * @param resolvedFormula the fitted R formula.
  * @param pipelineModel the fitted feature model, including factor to index mappings.
  */

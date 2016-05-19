@@ -693,10 +693,6 @@ case class AssertNotNull(child: Expression, walkedTypePath: Seq[String])
 case class GetExternalRowField(
     child: Expression,
     index: Int,
-<<<<<<< HEAD:sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/objects/objects.scala
-=======
-    fieldName: String,
->>>>>>> apache/master:sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/objects/objects.scala
     dataType: DataType) extends UnaryExpression with NonSQLExpression {
 
   override def nullable: Boolean = false
@@ -720,12 +716,7 @@ case class GetExternalRowField(
       }
 
       if (${row.value}.isNullAt($index)) {
-<<<<<<< HEAD:sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/objects/objects.scala
         throw new RuntimeException("The ${index}th field of input row cannot be null.");
-=======
-        throw new RuntimeException("The ${index}th field '$fieldName' of input row " +
-          "cannot be null.");
->>>>>>> apache/master:sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/expressions/objects/objects.scala
       }
 
       final ${ctx.javaType(dataType)} ${ev.value} = $getField;

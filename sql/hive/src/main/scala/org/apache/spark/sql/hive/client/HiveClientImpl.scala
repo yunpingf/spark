@@ -26,7 +26,6 @@ import scala.language.reflectiveCalls
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
-<<<<<<< HEAD
 import org.apache.hadoop.hive.metastore.{PartitionDropOptions, TableType => HiveTableType}
 import org.apache.hadoop.hive.metastore.api.{Database => HiveDatabase, FieldSchema}
 import org.apache.hadoop.hive.metastore.api.{Function => HiveFunction, FunctionType}
@@ -35,12 +34,6 @@ import org.apache.hadoop.hive.metastore.api.{ResourceType, ResourceUri}
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.metadata.{Hive, Partition => HivePartition, Table => HiveTable}
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc
-=======
-import org.apache.hadoop.hive.metastore.{TableType => HiveTableType}
-import org.apache.hadoop.hive.metastore.api.{Database => HiveDatabase, FieldSchema}
-import org.apache.hadoop.hive.ql.Driver
-import org.apache.hadoop.hive.ql.metadata.{Hive, Partition => HivePartition, Table => HiveTable}
->>>>>>> apache/master
 import org.apache.hadoop.hive.ql.processors._
 import org.apache.hadoop.hive.ql.session.SessionState
 import org.apache.hadoop.security.UserGroupInformation
@@ -48,7 +41,7 @@ import org.apache.hadoop.security.UserGroupInformation
 import org.apache.spark.{SparkConf, SparkException}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
 import org.apache.spark.sql.catalyst.analysis.{NoSuchDatabaseException, NoSuchPartitionException}
 import org.apache.spark.sql.catalyst.catalog._
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
@@ -407,7 +400,11 @@ private[hive] class HiveClientImpl(
       table: String,
       parts: Seq[CatalogTablePartition],
       ignoreIfExists: Boolean): Unit = withHiveState {
-    shim.createPartitions(client, db, table, parts, ignoreIfExists)
+    val addPartitionDesc = new AddPartitionDesc(db, table, ignoreIfExists)
+    parts.foreach { s =>
+      addPartitionDesc.addPartition(s.spec.asJava, s.storage.locationUri.orNull)
+    }
+    client.createPartitions(addPartitionDesc)
   }
 
   override def dropPartitions(
@@ -433,16 +430,10 @@ private[hive] class HiveClientImpl(
       }.distinct
     var droppedParts = ArrayBuffer.empty[java.util.List[String]]
     matchingParts.foreach { partition =>
-<<<<<<< HEAD
       val dropOptions = new PartitionDropOptions
       dropOptions.ifExists = ignoreIfNotExists
       try {
         client.dropPartition(db, table, partition, dropOptions)
-=======
-      try {
-        val deleteData = true
-        client.dropPartition(db, table, partition, deleteData)
->>>>>>> apache/master
       } catch {
         case e: Exception =>
           val remainingParts = matchingParts.toBuffer -- droppedParts
@@ -638,23 +629,25 @@ private[hive] class HiveClientImpl(
   }
 
   override def createFunction(db: String, func: CatalogFunction): Unit = withHiveState {
-    shim.createFunction(client, db, func)
+    client.createFunction(toHiveFunction(func, db))
   }
 
   override def dropFunction(db: String, name: String): Unit = withHiveState {
-    shim.dropFunction(client, db, name)
+    client.dropFunction(db, name)
   }
 
   override def renameFunction(db: String, oldName: String, newName: String): Unit = withHiveState {
-    shim.renameFunction(client, db, oldName, newName)
+    val catalogFunc = getFunction(db, oldName)
+      .copy(identifier = FunctionIdentifier(newName, Some(db)))
+    val hiveFunc = toHiveFunction(catalogFunc, db)
+    client.alterFunction(db, oldName, hiveFunc)
   }
 
   override def alterFunction(db: String, func: CatalogFunction): Unit = withHiveState {
-    shim.alterFunction(client, db, func)
+    client.alterFunction(db, func.identifier.funcName, toHiveFunction(func, db))
   }
 
   override def getFunctionOption(
-<<<<<<< HEAD
       db: String,
       name: String): Option[CatalogFunction] = withHiveState {
     try {
@@ -663,14 +656,10 @@ private[hive] class HiveClientImpl(
       case CausedBy(ex: NoSuchObjectException) if ex.getMessage.contains(name) =>
         None
     }
-=======
-      db: String, name: String): Option[CatalogFunction] = withHiveState {
-    shim.getFunctionOption(client, db, name)
->>>>>>> apache/master
   }
 
   override def listFunctions(db: String, pattern: String): Seq[String] = withHiveState {
-    shim.listFunctions(client, db, pattern)
+    client.getFunctions(db, pattern).asScala
   }
 
   def addJar(path: String): Unit = {
@@ -719,7 +708,6 @@ private[hive] class HiveClientImpl(
     Utils.classForName(name)
       .asInstanceOf[Class[_ <: org.apache.hadoop.hive.ql.io.HiveOutputFormat[_, _]]]
 
-<<<<<<< HEAD
   private def toHiveFunction(f: CatalogFunction, db: String): HiveFunction = {
     val resourceUris = f.resources.map { resource =>
       new ResourceUri(
@@ -750,8 +738,6 @@ private[hive] class HiveClientImpl(
     new CatalogFunction(name, hf.getClassName, resources)
   }
 
-=======
->>>>>>> apache/master
   private def toHiveColumn(c: CatalogColumn): FieldSchema = {
     new FieldSchema(c.name, c.dataType, c.comment.orNull)
   }

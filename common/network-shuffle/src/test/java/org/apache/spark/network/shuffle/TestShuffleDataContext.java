@@ -27,17 +27,12 @@ import com.google.common.io.Closeables;
 import com.google.common.io.Files;
 
 import org.apache.spark.network.shuffle.protocol.ExecutorShuffleInfo;
-import org.apache.spark.network.util.JavaUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Manages some sort-shuffle data, including the creation
  * and cleanup of directories that can be read by the {@link ExternalShuffleBlockResolver}.
  */
 public class TestShuffleDataContext {
-  private static final Logger logger = LoggerFactory.getLogger(TestShuffleDataContext.class);
-
   public final String[] localDirs;
   public final int subDirsPerLocalDir;
 
@@ -58,11 +53,7 @@ public class TestShuffleDataContext {
 
   public void cleanup() {
     for (String localDir : localDirs) {
-      try {
-        JavaUtils.deleteRecursively(new File(localDir));
-      } catch (IOException e) {
-        logger.warn("Unable to cleanup localDir = " + localDir, e);
-      }
+      deleteRecursively(new File(localDir));
     }
   }
 
@@ -100,5 +91,18 @@ public class TestShuffleDataContext {
    */
   public ExecutorShuffleInfo createExecutorInfo(String shuffleManager) {
     return new ExecutorShuffleInfo(localDirs, subDirsPerLocalDir, shuffleManager);
+  }
+
+  private static void deleteRecursively(File f) {
+    assert f != null;
+    if (f.isDirectory()) {
+      File[] children = f.listFiles();
+      if (children != null) {
+        for (File child : children) {
+          deleteRecursively(child);
+        }
+      }
+    }
+    f.delete();
   }
 }

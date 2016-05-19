@@ -379,7 +379,7 @@ class TrainValidationSplit(Estimator, ValidatorParams):
         seed = self.getOrDefault(self.seed)
         randCol = self.uid + "_rand"
         df = dataset.select("*", rand(seed).alias(randCol))
-        metrics = [0.0] * numModels
+        metrics = np.zeros(numModels)
         condition = (df[randCol] >= tRatio)
         validation = df.filter(condition)
         train = df.filter(~condition)
@@ -392,7 +392,7 @@ class TrainValidationSplit(Estimator, ValidatorParams):
         else:
             bestIndex = np.argmin(metrics)
         bestModel = est.fit(dataset, epm[bestIndex])
-        return self._copyValues(TrainValidationSplitModel(bestModel, metrics))
+        return self._copyValues(TrainValidationSplitModel(bestModel))
 
     @since("2.0.0")
     def copy(self, extra=None):
@@ -424,12 +424,10 @@ class TrainValidationSplitModel(Model, ValidatorParams):
     .. versionadded:: 2.0.0
     """
 
-    def __init__(self, bestModel, validationMetrics=[]):
+    def __init__(self, bestModel):
         super(TrainValidationSplitModel, self).__init__()
         #: best model from cross validation
         self.bestModel = bestModel
-        #: evaluated validation metrics
-        self.validationMetrics = validationMetrics
 
     def _transform(self, dataset):
         return self.bestModel.transform(dataset)
@@ -441,16 +439,13 @@ class TrainValidationSplitModel(Model, ValidatorParams):
         and some extra params. This copies the underlying bestModel,
         creates a deep copy of the embedded paramMap, and
         copies the embedded and extra parameters over.
-        And, this creates a shallow copy of the validationMetrics.
 
         :param extra: Extra parameters to copy to the new instance
         :return: Copy of this instance
         """
         if extra is None:
             extra = dict()
-        bestModel = self.bestModel.copy(extra)
-        validationMetrics = list(self.validationMetrics)
-        return TrainValidationSplitModel(bestModel, validationMetrics)
+        return TrainValidationSplitModel(self.bestModel.copy(extra))
 
 
 if __name__ == "__main__":
