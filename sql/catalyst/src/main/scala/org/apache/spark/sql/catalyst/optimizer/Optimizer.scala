@@ -151,9 +151,51 @@ object SamplePushDown extends Rule[LogicalPlan] {
 
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // Push down projection into sample
-    case Project(projectList, s @ Sample(lb, up, replace, seed, child)) =>
-      Sample(lb, up, replace, seed,
-        Project(projectList, child))()
+    case Project(projectList, Sample(lb, up, replace, seed, child)) =>
+      Sample(lb, up, replace, seed, Project(projectList, child))()
+  }
+}
+
+/**
+ * Removes the Project only conducting Alias of its child node.
+ * It is created mainly for removing extra Project added in EliminateSerialization rule,
+ * but can also benefit other operators.
+ */
+object RemoveAliasOnlyProject extends Rule[LogicalPlan] {
+  // Check if projectList in the Project node has the same attribute names and ordering
+  // as its child node.
+  private def isAliasOnly(
+      projectList: Seq[NamedExpression],
+      childOutput: Seq[Attribute]): Boolean = {
+    if (!projectList.forall(_.isInstanceOf[Alias]) || projectList.length != childOutput.length) {
+      return false
+    } else {
+      projectList.map(_.asInstanceOf[Alias]).zip(childOutput).forall { case (a, o) =>
+        a.child match {
+          case attr: Attribute if a.name == attr.name && attr.semanticEquals(o) => true
+          case _ => false
+        }
+      }
+    }
+  }
+
+  def apply(plan: LogicalPlan): LogicalPlan = {
+    val aliasOnlyProject = plan.find { p =>
+      p match {
+        case Project(pList, child) if isAliasOnly(pList, child.output) => true
+        case _ => false
+      }
+    }
+
+    aliasOnlyProject.map { case p: Project =>
+      val aliases = p.projectList.map(_.asInstanceOf[Alias])
+      val attrMap = AttributeMap(aliases.map(a => (a.toAttribute, a.child)))
+      plan.transformAllExpressions {
+        case a: Attribute if attrMap.contains(a) => attrMap(a)
+      }.transform {
+        case op: Project if op.eq(p) => op.child
+      }
+    }.getOrElse(plan)
   }
 }
 
@@ -226,7 +268,7 @@ object LimitPushDown extends Rule[LogicalPlan] {
 
   private def stripGlobalLimitIfPresent(plan: LogicalPlan): LogicalPlan = {
     plan match {
-      case GlobalLimit(expr, child) => child
+      case GlobalLimit(_, child) => child
       case _ => plan
     }
   }
@@ -259,7 +301,7 @@ object LimitPushDown extends Rule[LogicalPlan] {
     //   - If one side is already limited, stack another limit on top if the new limit is smaller.
     //     The redundant limit will be collapsed by the CombineLimits rule.
     //   - If neither side is limited, limit the side that is estimated to be bigger.
-    case LocalLimit(exp, join @ Join(left, right, joinType, condition)) =>
+    case LocalLimit(exp, join @ Join(left, right, joinType, _)) =>
       val newJoin = joinType match {
         case RightOuter => join.copy(right = maybePushLimit(exp, right))
         case LeftOuter => join.copy(left = maybePushLimit(exp, left))
@@ -408,7 +450,7 @@ object ColumnPruning extends Rule[LogicalPlan] {
       p.copy(child = g.copy(join = false))
 
     // Eliminate unneeded attributes from right side of a Left Existence Join.
-    case j @ Join(left, right, LeftExistence(_), condition) =>
+    case j @ Join(_, right, LeftExistence(_), _) =>
       j.copy(right = prunedChild(right, j.references))
 
     // all the columns will be used to compare, so we can't prune them
@@ -440,10 +482,10 @@ object ColumnPruning extends Rule[LogicalPlan] {
     case w: Window if w.windowExpressions.isEmpty => w.child
 
     // Eliminate no-op Projects
-    case p @ Project(projectList, child) if sameOutput(child.output, p.output) => child
+    case p @ Project(_, child) if sameOutput(child.output, p.output) => child
 
     // Can't prune the columns on LeafNode
-    case p @ Project(_, l: LeafNode) => p
+    case p @ Project(_, _: LeafNode) => p
 
     // for all other logical plans that inherits the output from it's children
     case p @ Project(_, child) =>
@@ -541,7 +583,7 @@ object CollapseProject extends Rule[LogicalPlan] {
  */
 object CollapseRepartition extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transformUp {
-    case r @ Repartition(numPartitions, shuffle, Repartition(_, _, child)) =>
+    case Repartition(numPartitions, shuffle, Repartition(_, _, child)) =>
       Repartition(numPartitions, shuffle, child)
   }
 }
@@ -917,7 +959,7 @@ object CombineUnions extends Rule[LogicalPlan] {
  */
 object CombineFilters extends Rule[LogicalPlan] with PredicateHelper {
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case ff @ Filter(fc, nf @ Filter(nc, grandChild)) =>
+    case Filter(fc, nf @ Filter(nc, grandChild)) =>
       (ExpressionSet(splitConjunctivePredicates(fc)) --
         ExpressionSet(splitConjunctivePredicates(nc))).reduceOption(And) match {
         case Some(ac) =>
@@ -1071,9 +1113,9 @@ object PushDownPredicate extends Rule[LogicalPlan] with PredicateHelper {
       }
 
     // two filters should be combine together by other rules
-    case filter @ Filter(_, f: Filter) => filter
+    case filter @ Filter(_, _: Filter) => filter
     // should not push predicates through sample, or will generate different results.
-    case filter @ Filter(_, s: Sample) => filter
+    case filter @ Filter(_, _: Sample) => filter
 
     case filter @ Filter(condition, u: UnaryNode) if u.expressions.forall(_.deterministic) =>
       pushDownPredicate(filter, u.child) { predicate =>
@@ -1352,11 +1394,11 @@ object RemoveDispensableExpressions extends Rule[LogicalPlan] {
  */
 object CombineLimits extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case ll @ GlobalLimit(le, nl @ GlobalLimit(ne, grandChild)) =>
+    case GlobalLimit(le, GlobalLimit(ne, grandChild)) =>
       GlobalLimit(Least(Seq(ne, le)), grandChild)
-    case ll @ LocalLimit(le, nl @ LocalLimit(ne, grandChild)) =>
+    case LocalLimit(le, LocalLimit(ne, grandChild)) =>
       LocalLimit(Least(Seq(ne, le)), grandChild)
-    case ll @ Limit(le, nl @ Limit(ne, grandChild)) =>
+    case Limit(le, Limit(ne, grandChild)) =>
       Limit(Least(Seq(ne, le)), grandChild)
   }
 }
@@ -1588,7 +1630,7 @@ object EmbedSerializerInFilter extends Rule[LogicalPlan] {
  */
 object RewritePredicateSubquery extends Rule[LogicalPlan] with PredicateHelper {
   def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case f @ Filter(condition, child) =>
+    case Filter(condition, child) =>
       val (withSubquery, withoutSubquery) =
         splitConjunctivePredicates(condition).partition(PredicateSubquery.hasPredicateSubquery)
 
@@ -1619,7 +1661,11 @@ object RewritePredicateSubquery extends Rule[LogicalPlan] with PredicateHelper {
           val replaced = predicate transformUp {
             case PredicateSubquery(sub, conditions, nullAware, _) =>
               // TODO: support null-aware join
+<<<<<<< HEAD
               val exists = AttributeReference("exists", BooleanType, false)()
+=======
+              val exists = AttributeReference("exists", BooleanType, nullable = false)()
+>>>>>>> apache/master
               joined = Join(joined, sub, ExistenceJoin(exists), conditions.reduceLeftOption(And))
               exists
           }

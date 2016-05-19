@@ -217,11 +217,15 @@ private[sql] trait SQLTestUtils
       case FilterExec(_, child) => child
     }
 
+<<<<<<< HEAD
     val childRDD = withoutFilters
       .execute()
       .map(row => Row.fromSeq(row.copy().toSeq(schema)))
 
     spark.createDataFrame(childRDD, schema)
+=======
+    spark.internalCreateDataFrame(withoutFilters.execute(), schema)
+>>>>>>> apache/master
   }
 
   /**
