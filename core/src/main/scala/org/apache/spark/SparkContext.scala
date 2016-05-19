@@ -29,6 +29,7 @@ import scala.collection.JavaConverters._
 import scala.collection.Map
 import scala.collection.generic.Growable
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
 import scala.language.implicitConversions
 import scala.reflect.{classTag, ClassTag}
 import scala.util.control.NonFatal
@@ -272,6 +273,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     val map: ConcurrentMap[Int, RDD[_]] = new MapMaker().weakValues().makeMap[Int, RDD[_]]()
     map.asScala
   }
+  private[spark] val rddIdToChildIds = HashMap[Int, HashSet[Int]]()
   private[spark] def jobProgressListener: JobProgressListener = _jobProgressListener
 
   def statusTracker: SparkStatusTracker = _statusTracker
@@ -1841,7 +1843,13 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       Option(getLocalProperty(CallSite.LONG_FORM)).getOrElse(callSite.longForm)
     )
   }
-
+  private def buildChildDependency[T](rdd: RDD[T]): Unit = {
+    val rdds = rdd.dependencies.map(dep => dep.rdd);
+    for (r <- rdds) {
+      rddIdToChildIds.getOrElse(r.id, HashSet[Int]()).add(rdd.id)
+      buildChildDependency(r);
+    }
+  }
   /**
    * Run a function on a given set of partitions in an RDD and pass the results to the given
    * handler function. This is the main entry point for all actions in Spark.
@@ -1860,6 +1868,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
+    buildChildDependency(rdd);
     dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
     rdd.doCheckpoint()
