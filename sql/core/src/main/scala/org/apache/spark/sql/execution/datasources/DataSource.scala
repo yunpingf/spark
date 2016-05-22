@@ -83,14 +83,6 @@ case class DataSource(
     "com.databricks.spark.csv" -> classOf[csv.DefaultSource].getCanonicalName
   )
 
-  /**
-   * Class that were removed in Spark 2.0. Used to detect incompatibility libraries for Spark 2.0.
-   */
-  private val spark2RemovedClasses = Set(
-    "org.apache.spark.sql.DataFrame",
-    "org.apache.spark.sql.sources.HadoopFsRelationProvider",
-    "org.apache.spark.Logging")
-
   /** Given a provider name, look up the data source class definition. */
   private def lookupDataSource(provider0: String): Class[_] = {
     val provider = backwardCompatibilityMap.getOrElse(provider0, provider0)
@@ -101,45 +93,26 @@ case class DataSource(
     serviceLoader.asScala.filter(_.shortName().equalsIgnoreCase(provider)).toList match {
       // the provider format did not match any given registered aliases
       case Nil =>
-        try {
-          Try(loader.loadClass(provider)).orElse(Try(loader.loadClass(provider2))) match {
-            case Success(dataSource) =>
-              // Found the data source using fully qualified path
-              dataSource
-            case Failure(error) =>
-              if (error.isInstanceOf[ClassNotFoundException]) {
-                val className = error.getMessage
-                if (spark2RemovedClasses.contains(className)) {
-                  throw new ClassNotFoundException(s"$className is removed in Spark 2.0. " +
-                    "Please check if your library is compatible with Spark 2.0")
-                }
-              }
-              if (provider.startsWith("org.apache.spark.sql.hive.orc")) {
-                throw new ClassNotFoundException(
-                  "The ORC data source must be used with Hive support enabled.", error)
-              } else {
-                if (provider == "avro" || provider == "com.databricks.spark.avro") {
-                  throw new ClassNotFoundException(
-                    s"Failed to find data source: $provider. Please use Spark package " +
-                      "http://spark-packages.org/package/databricks/spark-avro",
-                    error)
-                } else {
-                  throw new ClassNotFoundException(
-                    s"Failed to find data source: $provider. Please find packages at " +
-                      "http://spark-packages.org",
-                    error)
-                }
-              }
-          }
-        } catch {
-          case e: NoClassDefFoundError => // This one won't be caught by Scala NonFatal
-            // NoClassDefFoundError's class name uses "/" rather than "." for packages
-            val className = e.getMessage.replaceAll("/", ".")
-            if (spark2RemovedClasses.contains(className)) {
-              throw new ClassNotFoundException(s"$className was removed in Spark 2.0. " +
-                "Please check if your library is compatible with Spark 2.0", e)
+        Try(loader.loadClass(provider)).orElse(Try(loader.loadClass(provider2))) match {
+          case Success(dataSource) =>
+            // Found the data source using fully qualified path
+            dataSource
+          case Failure(error) =>
+            if (provider.startsWith("org.apache.spark.sql.hive.orc")) {
+              throw new ClassNotFoundException(
+                "The ORC data source must be used with Hive support enabled.", error)
             } else {
-              throw e
+              if (provider == "avro" || provider == "com.databricks.spark.avro") {
+                throw new ClassNotFoundException(
+                  s"Failed to find data source: $provider. Please use Spark package " +
+                  "http://spark-packages.org/package/databricks/spark-avro",
+                  error)
+              } else {
+                throw new ClassNotFoundException(
+                  s"Failed to find data source: $provider. Please find packages at " +
+                  "http://spark-packages.org",
+                  error)
+              }
             }
         }
       case head :: Nil =>
@@ -178,7 +151,7 @@ case class DataSource(
     providingClass.newInstance() match {
       case s: StreamSourceProvider =>
         val (name, schema) = s.sourceSchema(
-          sparkSession.sqlContext, userSpecifiedSchema, className, options)
+          sparkSession.wrapped, userSpecifiedSchema, className, options)
         SourceInfo(name, schema)
 
       case format: FileFormat =>
@@ -198,8 +171,7 @@ case class DataSource(
   def createSource(metadataPath: String): Source = {
     providingClass.newInstance() match {
       case s: StreamSourceProvider =>
-        s.createSource(
-          sparkSession.sqlContext, metadataPath, userSpecifiedSchema, className, options)
+        s.createSource(sparkSession.wrapped, metadataPath, userSpecifiedSchema, className, options)
 
       case format: FileFormat =>
         val path = new CaseInsensitiveMap(options).getOrElse("path", {
@@ -216,7 +188,7 @@ case class DataSource(
   /** Returns a sink that can be used to continually write data. */
   def createSink(): Sink = {
     providingClass.newInstance() match {
-      case s: StreamSinkProvider => s.createSink(sparkSession.sqlContext, options, partitionColumns)
+      case s: StreamSinkProvider => s.createSink(sparkSession.wrapped, options, partitionColumns)
 
       case parquet: parquet.DefaultSource =>
         val caseInsensitiveOptions = new CaseInsensitiveMap(options)
@@ -266,9 +238,9 @@ case class DataSource(
     val relation = (providingClass.newInstance(), userSpecifiedSchema) match {
       // TODO: Throw when too much is given.
       case (dataSource: SchemaRelationProvider, Some(schema)) =>
-        dataSource.createRelation(sparkSession.sqlContext, caseInsensitiveOptions, schema)
+        dataSource.createRelation(sparkSession.wrapped, caseInsensitiveOptions, schema)
       case (dataSource: RelationProvider, None) =>
-        dataSource.createRelation(sparkSession.sqlContext, caseInsensitiveOptions)
+        dataSource.createRelation(sparkSession.wrapped, caseInsensitiveOptions)
       case (_: SchemaRelationProvider, None) =>
         throw new AnalysisException(s"A schema needs to be specified when using $className.")
       case (_: RelationProvider, Some(_)) =>
@@ -384,7 +356,7 @@ case class DataSource(
 
     providingClass.newInstance() match {
       case dataSource: CreatableRelationProvider =>
-        dataSource.createRelation(sparkSession.sqlContext, mode, options, data)
+        dataSource.createRelation(sparkSession.wrapped, mode, options, data)
       case format: FileFormat =>
         // Don't glob path for the write path.  The contracts here are:
         //  1. Only one output path can be specified on the write path;
@@ -433,7 +405,7 @@ case class DataSource(
         // ordering of data.logicalPlan (partition columns are all moved after data column).  This
         // will be adjusted within InsertIntoHadoopFsRelation.
         val plan =
-          InsertIntoHadoopFsRelationCommand(
+          InsertIntoHadoopFsRelation(
             outputPath,
             partitionColumns.map(UnresolvedAttribute.quoted),
             bucketSpec,

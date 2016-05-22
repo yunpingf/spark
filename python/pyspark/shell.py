@@ -35,21 +35,19 @@ from pyspark.storagelevel import StorageLevel
 if os.environ.get("SPARK_EXECUTOR_URI"):
     SparkContext.setSystemProperty("spark.executor.uri", os.environ["SPARK_EXECUTOR_URI"])
 
-SparkContext._ensure_initialized()
+sc = SparkContext()
+atexit.register(lambda: sc.stop())
 
 try:
     # Try to access HiveConf, it will raise exception if Hive is not added
-    SparkContext._jvm.org.apache.hadoop.hive.conf.HiveConf()
+    sc._jvm.org.apache.hadoop.hive.conf.HiveConf()
     spark = SparkSession.builder\
         .enableHiveSupport()\
         .getOrCreate()
 except py4j.protocol.Py4JError:
-    spark = SparkSession.builder.getOrCreate()
+    spark = SparkSession(sc)
 except TypeError:
-    spark = SparkSession.builder.getOrCreate()
-
-sc = spark.sparkContext
-atexit.register(lambda: sc.stop())
+    spark = SparkSession(sc)
 
 # for compatibility
 sqlContext = spark._wrapped

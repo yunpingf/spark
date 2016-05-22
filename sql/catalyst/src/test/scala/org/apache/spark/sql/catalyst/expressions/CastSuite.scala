@@ -548,6 +548,7 @@ class CastSuite extends SparkFunSuite with ExpressionEvalHelper {
     {
       val ret = cast(array_notNull, ArrayType(BooleanType, containsNull = false))
       assert(ret.resolved === false)
+      checkEvaluation(ret, Seq(null, true, false))
     }
 
     {
@@ -606,6 +607,7 @@ class CastSuite extends SparkFunSuite with ExpressionEvalHelper {
     {
       val ret = cast(map_notNull, MapType(StringType, BooleanType, valueContainsNull = false))
       assert(ret.resolved === false)
+      checkEvaluation(ret, Map("a" -> null, "b" -> true, "c" -> false))
     }
     {
       val ret = cast(map_notNull, MapType(IntegerType, StringType, valueContainsNull = true))
@@ -712,6 +714,7 @@ class CastSuite extends SparkFunSuite with ExpressionEvalHelper {
         StructField("b", BooleanType, nullable = true),
         StructField("c", BooleanType, nullable = false))))
       assert(ret.resolved === false)
+      checkEvaluation(ret, InternalRow(null, true, false))
     }
 
     {
@@ -752,6 +755,10 @@ class CastSuite extends SparkFunSuite with ExpressionEvalHelper {
           StructField("l", LongType, nullable = true)))))))
 
     assert(ret.resolved === false)
+    checkEvaluation(ret, Row(
+      Seq(123, null, null),
+      Map("a" -> null, "b" -> true, "c" -> false),
+      Row(0L)))
   }
 
   test("cast between string and interval") {

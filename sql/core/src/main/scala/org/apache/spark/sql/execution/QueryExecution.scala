@@ -60,7 +60,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   }
 
   lazy val analyzed: LogicalPlan = {
-    SparkSession.setActiveSession(sparkSession)
+    SQLContext.setActive(sparkSession.wrapped)
     sparkSession.sessionState.analyzer.execute(logical)
   }
 
@@ -73,7 +73,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   lazy val optimizedPlan: LogicalPlan = sparkSession.sessionState.optimizer.execute(withCachedData)
 
   lazy val sparkPlan: SparkPlan = {
-    SparkSession.setActiveSession(sparkSession)
+    SQLContext.setActive(sparkSession.wrapped)
     planner.plan(ReturnAnswer(optimizedPlan)).next()
   }
 

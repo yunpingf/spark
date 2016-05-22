@@ -20,25 +20,42 @@ package org.apache.spark.ml.util;
 import java.io.File;
 import java.io.IOException;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.spark.SharedSparkSession;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.util.Utils;
 
-public class JavaDefaultReadWriteSuite extends SharedSparkSession {
+public class JavaDefaultReadWriteSuite {
+
+  JavaSparkContext jsc = null;
+  SparkSession spark = null;
   File tempDir = null;
 
-  @Override
-  public void setUp() throws IOException {
-    super.setUp();
+  @Before
+  public void setUp() {
+    SQLContext.clearActive();
+    spark = SparkSession.builder()
+      .master("local[2]")
+      .appName("JavaDefaultReadWriteSuite")
+      .getOrCreate();
+    SQLContext.setActive(spark.wrapped());
+
     tempDir = Utils.createTempDir(
       System.getProperty("java.io.tmpdir"), "JavaDefaultReadWriteSuite");
   }
 
-  @Override
+  @After
   public void tearDown() {
-    super.tearDown();
+    SQLContext.clearActive();
+    if (spark != null) {
+      spark.stop();
+      spark = null;
+    }
     Utils.deleteRecursively(tempDir);
   }
 
@@ -56,7 +73,7 @@ public class JavaDefaultReadWriteSuite extends SharedSparkSession {
     } catch (IOException e) {
       // expected
     }
-    instance.write().context(spark.sqlContext()).overwrite().save(outputPath);
+    instance.write().context(spark.wrapped()).overwrite().save(outputPath);
     MyParams newInstance = MyParams.load(outputPath);
     Assert.assertEquals("UID should match.", instance.uid(), newInstance.uid());
     Assert.assertEquals("Params should be preserved.",

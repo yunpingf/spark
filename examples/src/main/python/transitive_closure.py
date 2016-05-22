@@ -20,7 +20,7 @@ from __future__ import print_function
 import sys
 from random import Random
 
-from pyspark.sql import SparkSession
+from pyspark import SparkContext
 
 numEdges = 200
 numVertices = 100
@@ -41,13 +41,7 @@ if __name__ == "__main__":
     """
     Usage: transitive_closure [partitions]
     """
-    spark = SparkSession\
-        .builder\
-        .appName("PythonTransitiveClosure")\
-        .getOrCreate()
-
-    sc = spark._sc
-
+    sc = SparkContext(appName="PythonTransitiveClosure")
     partitions = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     tc = sc.parallelize(generateGraph(), partitions).cache()
 
@@ -73,4 +67,4 @@ if __name__ == "__main__":
 
     print("TC has %i edges" % tc.count())
 
-    spark.stop()
+    sc.stop()

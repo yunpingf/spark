@@ -18,7 +18,7 @@
 // scalastyle:off println
 package org.apache.spark.examples
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
  * Computes the PageRank of URLs from an input file. Input file should
@@ -50,13 +50,10 @@ object SparkPageRank {
 
     showWarning()
 
-    val spark = SparkSession
-      .builder
-      .appName("SparkPageRank")
-      .getOrCreate()
-
+    val sparkConf = new SparkConf().setAppName("PageRank")
     val iters = if (args.length > 1) args(1).toInt else 10
-    val lines = spark.read.text(args(0)).rdd
+    val ctx = new SparkContext(sparkConf)
+    val lines = ctx.textFile(args(0), 1)
     val links = lines.map{ s =>
       val parts = s.split("\\s+")
       (parts(0), parts(1))
@@ -74,7 +71,7 @@ object SparkPageRank {
     val output = ranks.collect()
     output.foreach(tup => println(tup._1 + " has rank: " + tup._2 + "."))
 
-    spark.stop()
+    ctx.stop()
   }
 }
 // scalastyle:on println

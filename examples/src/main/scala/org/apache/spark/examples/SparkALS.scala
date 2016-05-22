@@ -20,13 +20,13 @@ package org.apache.spark.examples
 
 import org.apache.commons.math3.linear._
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark._
 
 /**
  * Alternating least squares matrix factorization.
  *
  * This is an example implementation for learning how to use Spark. For more conventional use,
- * please refer to org.apache.spark.ml.recommendation.ALS.
+ * please refer to org.apache.spark.mllib.recommendation.ALS
  */
 object SparkALS {
 
@@ -81,7 +81,7 @@ object SparkALS {
   def showWarning() {
     System.err.println(
       """WARN: This is a naive implementation of ALS and is given as an example!
-        |Please use org.apache.spark.ml.recommendation.ALS
+        |Please use the ALS method found in org.apache.spark.mllib.recommendation
         |for more conventional use.
       """.stripMargin)
   }
@@ -108,12 +108,8 @@ object SparkALS {
 
     println(s"Running with M=$M, U=$U, F=$F, iters=$ITERATIONS")
 
-    val spark = SparkSession
-      .builder
-      .appName("SparkALS")
-      .getOrCreate()
-
-    val sc = spark.sparkContext
+    val sparkConf = new SparkConf().setAppName("SparkALS")
+    val sc = new SparkContext(sparkConf)
 
     val R = generateR()
 
@@ -139,7 +135,7 @@ object SparkALS {
       println()
     }
 
-    spark.stop()
+    sc.stop()
   }
 
   private def randomVector(n: Int): RealVector =

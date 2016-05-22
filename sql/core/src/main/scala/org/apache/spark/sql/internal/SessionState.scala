@@ -29,7 +29,7 @@ import org.apache.spark.sql.catalyst.optimizer.Optimizer
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution._
-import org.apache.spark.sql.execution.command.AnalyzeTableCommand
+import org.apache.spark.sql.execution.command.AnalyzeTable
 import org.apache.spark.sql.execution.datasources.{DataSourceAnalysis, FindDataSourceTable, PreInsertCastAndRename, ResolveDataSource}
 import org.apache.spark.sql.util.ExecutionListenerManager
 
@@ -162,6 +162,10 @@ private[sql] class SessionState(sparkSession: SparkSession) {
 
   def executePlan(plan: LogicalPlan): QueryExecution = new QueryExecution(sparkSession, plan)
 
+  def refreshTable(tableName: String): Unit = {
+    catalog.refreshTable(sqlParser.parseTableIdentifier(tableName))
+  }
+
   def invalidateTable(tableName: String): Unit = {
     catalog.invalidateTable(sqlParser.parseTableIdentifier(tableName))
   }
@@ -189,6 +193,6 @@ private[sql] class SessionState(sparkSession: SparkSession) {
    * in the external catalog.
    */
   def analyze(tableName: String): Unit = {
-    AnalyzeTableCommand(tableName).run(sparkSession)
+    AnalyzeTable(tableName).run(sparkSession)
   }
 }

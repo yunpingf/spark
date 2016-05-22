@@ -18,7 +18,7 @@ from __future__ import print_function
 
 import sys
 
-from pyspark.sql import SparkSession
+from pyspark import SparkContext
 
 """
 Read data file users.parquet in local Spark distro:
@@ -47,13 +47,7 @@ if __name__ == "__main__":
         exit(-1)
 
     path = sys.argv[1]
-
-    spark = SparkSession\
-        .builder\
-        .appName("ParquetInputFormat")\
-        .getOrCreate()
-
-    sc = spark._sc
+    sc = SparkContext(appName="ParquetInputFormat")
 
     parquet_rdd = sc.newAPIHadoopFile(
         path,
@@ -65,4 +59,4 @@ if __name__ == "__main__":
     for k in output:
         print(k)
 
-    spark.stop()
+    sc.stop()

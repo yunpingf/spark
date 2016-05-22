@@ -24,7 +24,6 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.analysis._
 import org.apache.spark.sql.catalyst.encoders.{encoderFor, ExpressionEncoder}
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.usePrettyExpression
 import org.apache.spark.sql.execution.aggregate.TypedAggregateExpression
@@ -38,14 +37,6 @@ private[sql] object Column {
   def apply(expr: Expression): Column = new Column(expr)
 
   def unapply(col: Column): Option[Expression] = Some(col.expr)
-
-  private[sql] def generateAlias(e: Expression): String = {
-    e match {
-      case a: AggregateExpression if a.aggregateFunction.isInstanceOf[TypedAggregateExpression] =>
-        a.aggregateFunction.toString
-      case expr => usePrettyExpression(expr).sql
-    }
-  }
 }
 
 /**
@@ -154,7 +145,7 @@ class Column(protected[sql] val expr: Expression) extends Logging {
 
     case jt: JsonTuple => MultiAlias(jt, Nil)
 
-    case func: UnresolvedFunction => UnresolvedAlias(func, Some(Column.generateAlias))
+    case func: UnresolvedFunction => UnresolvedAlias(func, Some(usePrettyExpression(func).sql))
 
     // If we have a top level Cast, there is a chance to give it a better alias, if there is a
     // NamedExpression under this Cast.
@@ -165,13 +156,8 @@ class Column(protected[sql] val expr: Expression) extends Logging {
       case other => Alias(expr, usePrettyExpression(expr).sql)()
     }
 
-    case a: AggregateExpression if a.aggregateFunction.isInstanceOf[TypedAggregateExpression] =>
-      UnresolvedAlias(a, Some(Column.generateAlias))
-
     case expr: Expression => Alias(expr, usePrettyExpression(expr).sql)()
   }
-
-
 
   override def toString: String = usePrettyExpression(expr).sql
 

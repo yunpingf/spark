@@ -17,6 +17,7 @@
 
 package org.apache.spark.mllib.stat;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -41,7 +42,7 @@ import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import static org.apache.spark.streaming.JavaTestUtils.*;
 
-public class JavaStatisticsSuite {
+public class JavaStatisticsSuite implements Serializable {
   private transient SparkSession spark;
   private transient JavaSparkContext jsc;
   private transient JavaStreamingContext ssc;

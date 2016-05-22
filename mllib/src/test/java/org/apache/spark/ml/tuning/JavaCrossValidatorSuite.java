@@ -17,31 +17,46 @@
 
 package org.apache.spark.ml.tuning;
 
-import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.spark.SharedSparkSession;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.ml.classification.LogisticRegression;
-import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator;
+import static org.apache.spark.ml.classification.LogisticRegressionSuite.generateLogisticInputAsList;
 import org.apache.spark.ml.feature.LabeledPoint;
+import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator;
 import org.apache.spark.ml.param.ParamMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import static org.apache.spark.ml.classification.LogisticRegressionSuite.generateLogisticInputAsList;
+import org.apache.spark.sql.SparkSession;
 
+public class JavaCrossValidatorSuite implements Serializable {
 
-public class JavaCrossValidatorSuite extends SharedSparkSession {
-
+  private transient SparkSession spark;
+  private transient JavaSparkContext jsc;
   private transient Dataset<Row> dataset;
 
-  @Override
-  public void setUp() throws IOException {
-    super.setUp();
+  @Before
+  public void setUp() {
+    spark = SparkSession.builder()
+      .master("local")
+      .appName("JavaCrossValidatorSuite")
+      .getOrCreate();
+    jsc = new JavaSparkContext(spark.sparkContext());
+
     List<LabeledPoint> points = generateLogisticInputAsList(1.0, 1.0, 100, 42);
     dataset = spark.createDataFrame(jsc.parallelize(points, 2), LabeledPoint.class);
+  }
+
+  @After
+  public void tearDown() {
+    jsc.stop();
+    jsc = null;
   }
 
   @Test

@@ -67,7 +67,7 @@ class TypedFilterOptimizationSuite extends PlanTest {
 
     val deserializer = UnresolvedDeserializer(encoderFor[(Int, Int)].deserializer)
     val condition = callFunction(f, BooleanType, deserializer)
-    val expected = input.where(condition).select('_1.as("_1"), '_2.as("_2")).analyze
+    val expected = input.where(condition).analyze
 
     comparePlans(optimized, expected)
   }

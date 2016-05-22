@@ -108,7 +108,7 @@ class PlanParserSuite extends PlanTest {
         "cte2" -> table("cte1").select(star())))
     intercept(
       "with cte1 (select 1), cte1 as (select 1 from cte1) select * from cte1",
-      "Found duplicate keys 'cte1'")
+      "Name 'cte1' is used for multiple common table expressions")
   }
 
   test("simple select query") {

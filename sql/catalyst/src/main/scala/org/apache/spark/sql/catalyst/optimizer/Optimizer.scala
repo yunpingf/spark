@@ -109,8 +109,7 @@ abstract class Optimizer(sessionCatalog: SessionCatalog, conf: CatalystConf)
     Batch("Decimal Optimizations", fixedPoint,
       DecimalAggregates) ::
     Batch("Typed Filter Optimization", fixedPoint,
-      EmbedSerializerInFilter,
-      RemoveAliasOnlyProject) ::
+      EmbedSerializerInFilter) ::
     Batch("LocalRelation", fixedPoint,
       ConvertToLocalRelation) ::
     Batch("OptimizeCodegen", Once,
@@ -673,11 +672,7 @@ object FoldablePropagation extends Rule[LogicalPlan] {
   def apply(plan: LogicalPlan): LogicalPlan = {
     val foldableMap = AttributeMap(plan.flatMap {
       case Project(projectList, _) => projectList.collect {
-<<<<<<< HEAD
         case a: Alias if a.resolved && a.child.foldable => (a.toAttribute, a)
-=======
-        case a: Alias if a.child.foldable => (a.toAttribute, a)
->>>>>>> apache/master
       }
       case _ => Nil
     })
@@ -1616,14 +1611,7 @@ object EmbedSerializerInFilter extends Rule[LogicalPlan] {
         val newCondition = condition transform {
           case a: Attribute if a == d.output.head => d.deserializer
         }
-        val filter = Filter(newCondition, d.child)
-
-        // Adds an extra Project here, to preserve the output expr id of `SerializeFromObject`.
-        // We will remove it later in RemoveAliasOnlyProject rule.
-        val objAttrs = filter.output.zip(s.output).map { case (fout, sout) =>
-          Alias(fout, fout.name)(exprId = sout.exprId)
-        }
-        Project(objAttrs, filter)
+        Filter(newCondition, d.child)
       }
   }
 }

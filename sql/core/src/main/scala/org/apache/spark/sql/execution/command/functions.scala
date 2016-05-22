@@ -39,7 +39,7 @@ import org.apache.spark.sql.types.{StringType, StructField, StructType}
  *    AS className [USING JAR\FILE 'uri' [, JAR|FILE 'uri']]
  * }}}
  */
-case class CreateFunctionCommand(
+case class CreateFunction(
     databaseName: Option[String],
     functionName: String,
     className: String,
@@ -81,7 +81,7 @@ case class CreateFunctionCommand(
  *   DESCRIBE FUNCTION [EXTENDED] upper;
  * }}}
  */
-case class DescribeFunctionCommand(
+case class DescribeFunction(
     functionName: FunctionIdentifier,
     isExtended: Boolean) extends RunnableCommand {
 
@@ -142,7 +142,7 @@ case class DescribeFunctionCommand(
  * ifExists: returns an error if the function doesn't exist, unless this is true.
  * isTemp: indicates if it is a temporary function.
  */
-case class DropFunctionCommand(
+case class DropFunction(
     databaseName: Option[String],
     functionName: String,
     ifExists: Boolean,
@@ -180,10 +180,10 @@ case class DropFunctionCommand(
  * For the pattern, '*' matches any sequence of characters (including no characters) and
  * '|' is for alternation.
  * For example, "show functions like 'yea*|windo*'" will return "window" and "year".
+ *
+ * TODO currently we are simply ignore the db
  */
-case class ShowFunctionsCommand(db: Option[String], pattern: Option[String])
-  extends RunnableCommand {
-
+case class ShowFunctions(db: Option[String], pattern: Option[String]) extends RunnableCommand {
   override val output: Seq[Attribute] = {
     val schema = StructType(StructField("function", StringType, nullable = false) :: Nil)
     schema.toAttributes

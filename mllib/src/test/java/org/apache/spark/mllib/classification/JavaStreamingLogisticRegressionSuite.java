@@ -17,6 +17,7 @@
 
 package org.apache.spark.mllib.classification;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -36,7 +37,7 @@ import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import static org.apache.spark.streaming.JavaTestUtils.*;
 
-public class JavaStreamingLogisticRegressionSuite {
+public class JavaStreamingLogisticRegressionSuite implements Serializable {
 
   protected transient JavaStreamingContext ssc;
 

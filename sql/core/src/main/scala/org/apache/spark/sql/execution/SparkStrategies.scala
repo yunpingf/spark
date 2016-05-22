@@ -92,8 +92,7 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
      * Matches a plan whose output should be small enough to be used in broadcast join.
      */
     private def canBroadcast(plan: LogicalPlan): Boolean = {
-      plan.statistics.isBroadcastable ||
-        plan.statistics.sizeInBytes <= conf.autoBroadcastJoinThreshold
+      plan.statistics.sizeInBytes <= conf.autoBroadcastJoinThreshold
     }
 
     /**
@@ -360,8 +359,8 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
           generator, join = join, outer = outer, g.output, planLater(child)) :: Nil
       case logical.OneRowRelation =>
         execution.RDDScanExec(Nil, singleRowRdd, "OneRowRelation") :: Nil
-      case r : logical.Range =>
-        execution.RangeExec(r) :: Nil
+      case r @ logical.Range(start, end, step, numSlices, output) =>
+        execution.RangeExec(start, step, numSlices, r.numElements, output) :: Nil
       case logical.RepartitionByExpression(expressions, child, nPartitions) =>
         exchange.ShuffleExchange(HashPartitioning(
           expressions, nPartitions.getOrElse(numPartitions)), planLater(child)) :: Nil
@@ -399,7 +398,7 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
         sys.error("Cannot create temporary partitioned table.")
 
       case c: CreateTableUsingAsSelect if c.temporary =>
-        val cmd = CreateTempTableUsingAsSelectCommand(
+        val cmd = CreateTempTableUsingAsSelect(
           c.tableIdent, c.provider, Array.empty[String], c.mode, c.options, c.child)
         ExecutedCommandExec(cmd) :: Nil
 
@@ -416,10 +415,10 @@ private[sql] abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
         ExecutedCommandExec(cmd) :: Nil
 
       case logical.ShowFunctions(db, pattern) =>
-        ExecutedCommandExec(ShowFunctionsCommand(db, pattern)) :: Nil
+        ExecutedCommandExec(ShowFunctions(db, pattern)) :: Nil
 
       case logical.DescribeFunction(function, extended) =>
-        ExecutedCommandExec(DescribeFunctionCommand(function, extended)) :: Nil
+        ExecutedCommandExec(DescribeFunction(function, extended)) :: Nil
 
       case _ => Nil
     }

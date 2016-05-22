@@ -17,8 +17,6 @@
 
 package org.apache.spark.sql.catalyst.expressions.codegen
 
-import org.apache.commons.lang3.StringUtils
-
 /**
  * An utility class that indents a block of code based on the curly braces and parentheses.
  * This is used to prettify generated code when in debug mode (or exceptions).
@@ -26,15 +24,7 @@ import org.apache.commons.lang3.StringUtils
  * Written by Matei Zaharia.
  */
 object CodeFormatter {
-  def format(code: CodeAndComment): String = {
-    new CodeFormatter().addLines(
-      StringUtils.replaceEach(
-        code.body,
-        code.comment.keys.toArray,
-        code.comment.values.toArray)
-    ).result
-  }
-
+  def format(code: String): String = new CodeFormatter().addLines(code).result()
   def stripExtraNewLines(input: String): String = {
     val code = new StringBuilder
     var lastLine: String = "dummy"

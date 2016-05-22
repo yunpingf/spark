@@ -22,9 +22,6 @@ import java.net.URI
 import java.util.Date
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.control.NonFatal
-
-import org.apache.hadoop.fs.Path
 
 import org.apache.spark.sql.{AnalysisException, Row, SparkSession}
 import org.apache.spark.sql.catalyst.TableIdentifier
@@ -39,9 +36,9 @@ import org.apache.spark.sql.types._
 import org.apache.spark.util.Utils
 
 case class CreateTableAsSelectLogicalPlan(
-    tableDesc: CatalogTable,
-    child: LogicalPlan,
-    allowExisting: Boolean) extends UnaryNode with Command {
+  tableDesc: CatalogTable,
+  child: LogicalPlan,
+  allowExisting: Boolean) extends UnaryNode with Command {
 
   override def output: Seq[Attribute] = Seq.empty[Attribute]
 
@@ -63,7 +60,7 @@ case class CreateTableAsSelectLogicalPlan(
  *   LIKE [other_db_name.]existing_table_name
  * }}}
  */
-case class CreateTableLikeCommand(
+case class CreateTableLike(
     targetTable: TableIdentifier,
     sourceTable: TableIdentifier,
     ifNotExists: Boolean) extends RunnableCommand {
@@ -115,7 +112,7 @@ case class CreateTableLikeCommand(
  *   [AS select_statement];
  * }}}
  */
-case class CreateTableCommand(table: CatalogTable, ifNotExists: Boolean) extends RunnableCommand {
+case class CreateTable(table: CatalogTable, ifNotExists: Boolean) extends RunnableCommand {
 
   override def run(sparkSession: SparkSession): Seq[Row] = {
     sparkSession.sessionState.catalog.createTable(table, ifNotExists)
@@ -134,7 +131,7 @@ case class CreateTableCommand(table: CatalogTable, ifNotExists: Boolean) extends
  *    ALTER VIEW view1 RENAME TO view2;
  * }}}
  */
-case class AlterTableRenameCommand(
+case class AlterTableRename(
     oldName: TableIdentifier,
     newName: TableIdentifier,
     isView: Boolean)
@@ -159,7 +156,7 @@ case class AlterTableRenameCommand(
  *  [PARTITION (partcol1=val1, partcol2=val2 ...)]
  * }}}
  */
-case class LoadDataCommand(
+case class LoadData(
     table: TableIdentifier,
     path: String,
     isLocal: Boolean,
@@ -268,56 +265,6 @@ case class LoadDataCommand(
         loadPath.toString,
         isOverwrite,
         holdDDLTime = false)
-    }
-    Seq.empty[Row]
-  }
-}
-
-/**
- * A command to truncate table.
- *
- * The syntax of this command is:
- * {{{
- *  TRUNCATE TABLE tablename [PARTITION (partcol1=val1, partcol2=val2 ...)]
- * }}}
- */
-case class TruncateTableCommand(
-    tableName: TableIdentifier,
-    partitionSpec: Option[TablePartitionSpec]) extends RunnableCommand {
-
-  override def run(sparkSession: SparkSession): Seq[Row] = {
-    val catalog = sparkSession.sessionState.catalog
-    if (!catalog.tableExists(tableName)) {
-      logError(s"table '$tableName' in TRUNCATE TABLE does not exist.")
-    } else if (catalog.isTemporaryTable(tableName)) {
-      logError(s"table '$tableName' in TRUNCATE TABLE is a temporary table.")
-    } else {
-      val locations = if (partitionSpec.isDefined) {
-        catalog.listPartitions(tableName, partitionSpec).map(_.storage.locationUri)
-      } else {
-        val table = catalog.getTableMetadata(tableName)
-        if (table.partitionColumnNames.nonEmpty) {
-          catalog.listPartitions(tableName).map(_.storage.locationUri)
-        } else {
-          Seq(table.storage.locationUri)
-        }
-      }
-      val hadoopConf = sparkSession.sessionState.newHadoopConf()
-      locations.foreach { location =>
-        if (location.isDefined) {
-          val path = new Path(location.get)
-          try {
-            val fs = path.getFileSystem(hadoopConf)
-            fs.delete(path, true)
-            fs.mkdirs(path)
-          } catch {
-            case NonFatal(e) =>
-              throw new AnalysisException(
-                s"Failed to truncate table '$tableName' when removing data of the path: $path " +
-                  s"because of ${e.toString}")
-          }
-        }
-      }
     }
     Seq.empty[Row]
   }
@@ -444,17 +391,16 @@ case class DescribeTableCommand(table: TableIdentifier, isExtended: Boolean, isF
       append(buffer, "Sort Columns:", sortColumns.mkString("[", ", ", "]"), "")
     }
 
-    DDLUtils.getBucketSpecFromTableProperties(metadata) match {
-      case Some(bucketSpec) =>
-        appendBucketInfo(
-          bucketSpec.numBuckets,
-          bucketSpec.bucketColumnNames,
-          bucketSpec.sortColumnNames)
-      case None =>
-        appendBucketInfo(
-          metadata.numBuckets,
-          metadata.bucketColumnNames,
-          metadata.sortColumnNames)
+    DDLUtils.getBucketSpecFromTableProperties(metadata).map { bucketSpec =>
+      appendBucketInfo(
+        bucketSpec.numBuckets,
+        bucketSpec.bucketColumnNames,
+        bucketSpec.sortColumnNames)
+    }.getOrElse {
+      appendBucketInfo(
+        metadata.numBuckets,
+        metadata.bucketColumnNames,
+        metadata.sortColumnNames)
     }
   }
 
@@ -687,16 +633,16 @@ case class ShowCreateTableCommand(table: TableIdentifier) extends RunnableComman
   }
 
   private def showCreateHiveTable(metadata: CatalogTable): String = {
-    def reportUnsupportedError(features: Seq[String]): Unit = {
-      throw new AnalysisException(
+    def reportUnsupportedError(): Unit = {
+      throw new UnsupportedOperationException(
         s"Failed to execute SHOW CREATE TABLE against table ${metadata.identifier.quotedString}, " +
-          "which is created by Hive and uses the following unsupported feature(s)\n" +
-          features.map(" - " + _).mkString("\n")
+          "because it contains table structure(s) (e.g. skewed columns) that Spark SQL doesn't " +
+          "support yet."
       )
     }
 
-    if (metadata.unsupportedFeatures.nonEmpty) {
-      reportUnsupportedError(metadata.unsupportedFeatures)
+    if (metadata.hasUnsupportedFeatures) {
+      reportUnsupportedError()
     }
 
     val builder = StringBuilder.newBuilder
@@ -705,7 +651,7 @@ case class ShowCreateTableCommand(table: TableIdentifier) extends RunnableComman
       case EXTERNAL => " EXTERNAL TABLE"
       case VIEW => " VIEW"
       case MANAGED => " TABLE"
-      case INDEX => reportUnsupportedError(Seq("index table"))
+      case INDEX => reportUnsupportedError()
     }
 
     builder ++= s"CREATE$tableTypeString ${table.quotedString}"

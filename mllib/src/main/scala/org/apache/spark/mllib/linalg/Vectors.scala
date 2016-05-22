@@ -186,8 +186,7 @@ sealed trait Vector extends Serializable {
    * Convert this vector to the new mllib-local representation.
    * This does NOT copy the data; it copies references.
    */
-  @Since("2.0.0")
-  def asML: newlinalg.Vector
+  private[spark] def asML: newlinalg.Vector
 }
 
 /**
@@ -582,11 +581,8 @@ object Vectors {
   /** Max number of nonzero entries used in computing hash code. */
   private[linalg] val MAX_HASH_NNZ = 128
 
-  /**
-   * Convert new linalg type to spark.mllib type.  Light copy; only copies references
-   */
-  @Since("2.0.0")
-  def fromML(v: newlinalg.Vector): Vector = v match {
+  /** Convert new linalg type to spark.mllib type.  Light copy; only copies references */
+  private[spark] def fromML(v: newlinalg.Vector): Vector = v match {
     case dv: newlinalg.DenseVector =>
       DenseVector.fromML(dv)
     case sv: newlinalg.SparseVector =>
@@ -708,8 +704,7 @@ class DenseVector @Since("1.0.0") (
     compact(render(jValue))
   }
 
-  @Since("2.0.0")
-  override def asML: newlinalg.DenseVector = {
+  private[spark] override def asML: newlinalg.DenseVector = {
     new newlinalg.DenseVector(values)
   }
 }
@@ -721,11 +716,8 @@ object DenseVector {
   @Since("1.3.0")
   def unapply(dv: DenseVector): Option[Array[Double]] = Some(dv.values)
 
-  /**
-   * Convert new linalg type to spark.mllib type.  Light copy; only copies references
-   */
-  @Since("2.0.0")
-  def fromML(v: newlinalg.DenseVector): DenseVector = {
+  /** Convert new linalg type to spark.mllib type.  Light copy; only copies references */
+  private[spark] def fromML(v: newlinalg.DenseVector): DenseVector = {
     new DenseVector(v.values)
   }
 }
@@ -919,8 +911,7 @@ class SparseVector @Since("1.0.0") (
     compact(render(jValue))
   }
 
-  @Since("2.0.0")
-  override def asML: newlinalg.SparseVector = {
+  private[spark] override def asML: newlinalg.SparseVector = {
     new newlinalg.SparseVector(size, indices, values)
   }
 }
@@ -931,11 +922,8 @@ object SparseVector {
   def unapply(sv: SparseVector): Option[(Int, Array[Int], Array[Double])] =
     Some((sv.size, sv.indices, sv.values))
 
-  /**
-   * Convert new linalg type to spark.mllib type.  Light copy; only copies references
-   */
-  @Since("2.0.0")
-  def fromML(v: newlinalg.SparseVector): SparseVector = {
+  /** Convert new linalg type to spark.mllib type.  Light copy; only copies references */
+  private[spark] def fromML(v: newlinalg.SparseVector): SparseVector = {
     new SparseVector(v.size, v.indices, v.values)
   }
 }

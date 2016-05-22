@@ -173,7 +173,7 @@ class StreamExecution(
       startLatch.countDown()
 
       // While active, repeatedly attempt to run batches.
-      SparkSession.setActiveSession(sparkSession)
+      SQLContext.setActive(sparkSession.wrapped)
 
       triggerExecutor.execute(() => {
         if (isActive) {

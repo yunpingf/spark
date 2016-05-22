@@ -313,8 +313,7 @@ abstract class UnaryNode extends LogicalPlan {
       // (product of children).
       sizeInBytes = 1
     }
-
-    child.statistics.copy(sizeInBytes = sizeInBytes)
+    Statistics(sizeInBytes = sizeInBytes)
   }
 }
 

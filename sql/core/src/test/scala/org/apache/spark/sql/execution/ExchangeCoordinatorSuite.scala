@@ -27,21 +27,21 @@ import org.apache.spark.sql.internal.SQLConf
 
 class ExchangeCoordinatorSuite extends SparkFunSuite with BeforeAndAfterAll {
 
-  private var originalActiveSQLContext: Option[SparkSession] = _
-  private var originalInstantiatedSQLContext: Option[SparkSession] = _
+  private var originalActiveSQLContext: Option[SQLContext] = _
+  private var originalInstantiatedSQLContext: Option[SQLContext] = _
 
   override protected def beforeAll(): Unit = {
-    originalActiveSQLContext = SparkSession.getActiveSession
-    originalInstantiatedSQLContext = SparkSession.getDefaultSession
+    originalActiveSQLContext = SQLContext.getActive()
+    originalInstantiatedSQLContext = SQLContext.getInstantiatedContextOption()
 
-    SparkSession.clearActiveSession()
-    SparkSession.clearDefaultSession()
+    SQLContext.clearActive()
+    SQLContext.clearInstantiatedContext()
   }
 
   override protected def afterAll(): Unit = {
     // Set these states back.
-    originalActiveSQLContext.foreach(ctx => SparkSession.setActiveSession(ctx))
-    originalInstantiatedSQLContext.foreach(ctx => SparkSession.setDefaultSession(ctx))
+    originalActiveSQLContext.foreach(ctx => SQLContext.setActive(ctx))
+    originalInstantiatedSQLContext.foreach(ctx => SQLContext.setInstantiatedContext(ctx))
   }
 
   private def checkEstimation(

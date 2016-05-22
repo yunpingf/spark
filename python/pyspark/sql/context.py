@@ -34,10 +34,7 @@ __all__ = ["SQLContext", "HiveContext", "UDFRegistration"]
 
 
 class SQLContext(object):
-    """The entry point for working with structured data (rows and columns) in Spark, in Spark 1.x.
-
-    As of Spark 2.0, this is replaced by :class:`SparkSession`. However, we are keeping the class
-    here for backward compatibility.
+    """Wrapper around :class:`SparkSession`, the main entry point to Spark SQL functionality.
 
     A SQLContext can be used create :class:`DataFrame`, register :class:`DataFrame` as
     tables, execute SQL over tables, cache tables, and read parquet files.

@@ -485,7 +485,7 @@ private[hive] class HiveMetastoreCatalog(sparkSession: SparkSession) extends Log
 
           val QualifiedTableName(dbName, tblName) = getQualifiedTableName(table)
 
-          execution.CreateTableAsSelectCommand(
+          execution.CreateTableAsSelect(
             desc.copy(identifier = TableIdentifier(tblName, Some(dbName))),
             child,
             allowExisting)

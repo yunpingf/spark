@@ -161,7 +161,9 @@ class LinearRegression @Since("1.3.0") (@Since("1.3.0") override val uid: String
 
   override protected def train(dataset: Dataset[_]): LinearRegressionModel = {
     // Extract the number of features before deciding optimization solver.
-    val numFeatures = dataset.select(col($(featuresCol))).first().getAs[Vector](0).size
+    val numFeatures = dataset.select(col($(featuresCol))).limit(1).rdd.map {
+      case Row(features: Vector) => features.size
+    }.first()
     val w = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
 
     if (($(solver) == "auto" && $(elasticNetParam) == 0.0 &&
@@ -240,7 +242,7 @@ class LinearRegression @Since("1.3.0") (@Since("1.3.0") override val uid: String
         val coefficients = Vectors.sparse(numFeatures, Seq())
         val intercept = yMean
 
-        val model = copyValues(new LinearRegressionModel(uid, coefficients, intercept))
+        val model = new LinearRegressionModel(uid, coefficients, intercept)
         // Handle possible missing or invalid prediction columns
         val (summaryModel, predictionColName) = model.findSummaryModelAndPredictionCol()
 
@@ -252,7 +254,7 @@ class LinearRegression @Since("1.3.0") (@Since("1.3.0") override val uid: String
           model,
           Array(0D),
           Array(0D))
-        return model.setSummary(trainingSummary)
+        return copyValues(model.setSummary(trainingSummary))
       } else {
         require($(regParam) == 0.0, "The standard deviation of the label is zero. " +
           "Model cannot be regularized.")
@@ -447,7 +449,7 @@ class LinearRegressionModel private[ml] (
   }
 
   /**
-   * Returns a [[org.apache.spark.ml.util.MLWriter]] instance for this ML instance.
+   * Returns a [[MLWriter]] instance for this ML instance.
    *
    * For [[LinearRegressionModel]], this does NOT currently save the training [[summary]].
    * An option to save [[summary]] may be added in the future.

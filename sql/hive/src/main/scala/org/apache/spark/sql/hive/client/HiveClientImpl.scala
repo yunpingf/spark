@@ -337,19 +337,10 @@ private[hive] class HiveClientImpl(
       val schema = h.getCols.asScala.map(fromHiveColumn) ++ partCols
 
       // Skew spec, storage handler, and bucketing info can't be mapped to CatalogTable (yet)
-      val unsupportedFeatures = ArrayBuffer.empty[String]
-
-      if (!h.getSkewedColNames.isEmpty) {
-        unsupportedFeatures += "skewed columns"
-      }
-
-      if (h.getStorageHandler != null) {
-        unsupportedFeatures += "storage handler"
-      }
-
-      if (!h.getBucketCols.isEmpty) {
-        unsupportedFeatures += "bucketing"
-      }
+      val hasUnsupportedFeatures =
+        !h.getSkewedColNames.isEmpty ||
+          h.getStorageHandler != null ||
+          !h.getBucketCols.isEmpty
 
       CatalogTable(
         identifier = TableIdentifier(h.getTableName, Option(h.getDbName)),
@@ -378,7 +369,7 @@ private[hive] class HiveClientImpl(
         properties = h.getParameters.asScala.toMap,
         viewOriginalText = Option(h.getViewOriginalText),
         viewText = Option(h.getViewExpandedText),
-        unsupportedFeatures = unsupportedFeatures)
+        hasUnsupportedFeatures = hasUnsupportedFeatures)
     }
   }
 
@@ -545,14 +536,12 @@ private[hive] class HiveClientImpl(
           // Throw an exception if there is an error in query processing.
           if (response.getResponseCode != 0) {
             driver.close()
-            CommandProcessorFactory.clean(conf)
             throw new QueryExecutionException(response.getErrorMessage)
           }
           driver.setMaxRows(maxRows)
 
           val results = shim.getDriverResults(driver)
           driver.close()
-          CommandProcessorFactory.clean(conf)
           results
 
         case _ =>

@@ -19,7 +19,6 @@ package org.apache.spark.sql.catalyst
 
 import java.lang.{Iterable => JavaIterable}
 import java.math.{BigDecimal => JavaBigDecimal}
-import java.math.{BigInteger => JavaBigInteger}
 import java.sql.{Date, Timestamp}
 import java.util.{Map => JavaMap}
 import javax.annotation.Nullable
@@ -327,7 +326,6 @@ object CatalystTypeConverters {
       val decimal = scalaValue match {
         case d: BigDecimal => Decimal(d)
         case d: JavaBigDecimal => Decimal(d)
-        case d: JavaBigInteger => Decimal(d)
         case d: Decimal => d
       }
       if (decimal.changePrecision(dataType.precision, dataType.scale)) {

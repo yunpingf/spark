@@ -17,28 +17,41 @@
 
 package org.apache.spark.ml.clustering;
 
-import java.io.IOException;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.spark.SharedSparkSession;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import org.apache.spark.ml.linalg.Vector;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 
-public class JavaKMeansSuite extends SharedSparkSession {
+public class JavaKMeansSuite implements Serializable {
 
   private transient int k = 5;
   private transient Dataset<Row> dataset;
+  private transient SparkSession spark;
 
-  @Override
-  public void setUp() throws IOException {
-    super.setUp();
+  @Before
+  public void setUp() {
+    spark = SparkSession.builder()
+      .master("local")
+      .appName("JavaKMeansSuite")
+      .getOrCreate();
     dataset = KMeansSuite.generateKMeansData(spark, 50, 3, k);
+  }
+
+  @After
+  public void tearDown() {
+    spark.stop();
+    spark = null;
   }
 
   @Test

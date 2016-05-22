@@ -25,7 +25,7 @@ import re
 import sys
 from operator import add
 
-from pyspark.sql import SparkSession
+from pyspark import SparkContext
 
 
 def computeContribs(urls, rank):
@@ -51,17 +51,14 @@ if __name__ == "__main__":
           file=sys.stderr)
 
     # Initialize the spark context.
-    spark = SparkSession\
-        .builder\
-        .appName("PythonPageRank")\
-        .getOrCreate()
+    sc = SparkContext(appName="PythonPageRank")
 
     # Loads in input file. It should be in format of:
     #     URL         neighbor URL
     #     URL         neighbor URL
     #     URL         neighbor URL
     #     ...
-    lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])
+    lines = sc.textFile(sys.argv[1], 1)
 
     # Loads all URLs from input file and initialize their neighbors.
     links = lines.map(lambda urls: parseNeighbors(urls)).distinct().groupByKey().cache()
@@ -82,4 +79,4 @@ if __name__ == "__main__":
     for (link, rank) in ranks.collect():
         print("%s has rank: %s." % (link, rank))
 
-    spark.stop()
+    sc.stop()

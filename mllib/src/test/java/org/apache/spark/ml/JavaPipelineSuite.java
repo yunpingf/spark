@@ -17,32 +17,45 @@
 
 package org.apache.spark.ml;
 
-import java.io.IOException;
-
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.spark.SharedSparkSession;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.ml.classification.LogisticRegression;
 import static org.apache.spark.ml.classification.LogisticRegressionSuite.generateLogisticInputAsList;
 import org.apache.spark.ml.feature.LabeledPoint;
 import org.apache.spark.ml.feature.StandardScaler;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 
 /**
  * Test Pipeline construction and fitting in Java.
  */
-public class JavaPipelineSuite extends SharedSparkSession {
+public class JavaPipelineSuite {
 
+  private transient SparkSession spark;
+  private transient JavaSparkContext jsc;
   private transient Dataset<Row> dataset;
 
-  @Override
-  public void setUp() throws IOException {
-    super.setUp();
+  @Before
+  public void setUp() {
+    spark = SparkSession.builder()
+      .master("local")
+      .appName("JavaPipelineSuite")
+      .getOrCreate();
+    jsc = new JavaSparkContext(spark.sparkContext());
     JavaRDD<LabeledPoint> points =
       jsc.parallelize(generateLogisticInputAsList(1.0, 1.0, 100, 42), 2);
     dataset = spark.createDataFrame(points, LabeledPoint.class);
+  }
+
+  @After
+  public void tearDown() {
+    spark.stop();
+    spark = null;
   }
 
   @Test

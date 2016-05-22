@@ -20,14 +20,14 @@ A logistic regression implementation that uses NumPy (http://www.numpy.org)
 to act on batches of input data using efficient matrix operations.
 
 In practice, one may prefer to use the LogisticRegression algorithm in
-ML, as shown in examples/src/main/python/ml/logistic_regression_with_elastic_net.py.
+MLlib, as shown in examples/src/main/python/mllib/logistic_regression.py.
 """
 from __future__ import print_function
 
 import sys
 
 import numpy as np
-from pyspark.sql import SparkSession
+from pyspark import SparkContext
 
 
 D = 10  # Number of dimensions
@@ -51,17 +51,11 @@ if __name__ == "__main__":
         exit(-1)
 
     print("""WARN: This is a naive implementation of Logistic Regression and is
-      given as an example!
-      Please refer to examples/src/main/python/ml/logistic_regression_with_elastic_net.py
-      to see how ML's implementation is used.""", file=sys.stderr)
+      given as an example! Please refer to examples/src/main/python/mllib/logistic_regression.py
+      to see how MLlib's implementation is used.""", file=sys.stderr)
 
-    spark = SparkSession\
-        .builder\
-        .appName("PythonLR")\
-        .getOrCreate()
-
-    points = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])\
-        .mapPartitions(readPointBatch).cache()
+    sc = SparkContext(appName="PythonLR")
+    points = sc.textFile(sys.argv[1]).mapPartitions(readPointBatch).cache()
     iterations = int(sys.argv[2])
 
     # Initialize w to a random value
@@ -85,4 +79,4 @@ if __name__ == "__main__":
 
     print("Final w: " + str(w))
 
-    spark.stop()
+    sc.stop()

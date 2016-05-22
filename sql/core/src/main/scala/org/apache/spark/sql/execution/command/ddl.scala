@@ -45,7 +45,7 @@ import org.apache.spark.sql.types._
  *     [WITH DBPROPERTIES (property_name=property_value, ...)];
  * }}}
  */
-case class CreateDatabaseCommand(
+case class CreateDatabase(
     databaseName: String,
     ifNotExists: Boolean,
     path: Option[String],
@@ -85,7 +85,7 @@ case class CreateDatabaseCommand(
  *    DROP DATABASE [IF EXISTS] database_name [RESTRICT|CASCADE];
  * }}}
  */
-case class DropDatabaseCommand(
+case class DropDatabase(
     databaseName: String,
     ifExists: Boolean,
     cascade: Boolean)
@@ -108,7 +108,7 @@ case class DropDatabaseCommand(
  *    ALTER (DATABASE|SCHEMA) database_name SET DBPROPERTIES (property_name=property_value, ...)
  * }}}
  */
-case class AlterDatabasePropertiesCommand(
+case class AlterDatabaseProperties(
     databaseName: String,
     props: Map[String, String])
   extends RunnableCommand {
@@ -134,7 +134,7 @@ case class AlterDatabasePropertiesCommand(
  *    DESCRIBE DATABASE [EXTENDED] db_name
  * }}}
  */
-case class DescribeDatabaseCommand(
+case class DescribeDatabase(
     databaseName: String,
     extended: Boolean)
   extends RunnableCommand {
@@ -175,7 +175,7 @@ case class DescribeDatabaseCommand(
  *   DROP VIEW [IF EXISTS] [db_name.]view_name;
  * }}}
  */
-case class DropTableCommand(
+case class DropTable(
     tableName: TableIdentifier,
     ifExists: Boolean,
     isView: Boolean) extends RunnableCommand {
@@ -220,7 +220,7 @@ case class DropTableCommand(
  *   ALTER VIEW view1 SET TBLPROPERTIES ('key1' = 'val1', 'key2' = 'val2', ...);
  * }}}
  */
-case class AlterTableSetPropertiesCommand(
+case class AlterTableSetProperties(
     tableName: TableIdentifier,
     properties: Map[String, String],
     isView: Boolean)
@@ -251,7 +251,7 @@ case class AlterTableSetPropertiesCommand(
  *   ALTER VIEW view1 UNSET TBLPROPERTIES [IF EXISTS] ('key1', 'key2', ...);
  * }}}
  */
-case class AlterTableUnsetPropertiesCommand(
+case class AlterTableUnsetProperties(
     tableName: TableIdentifier,
     propKeys: Seq[String],
     ifExists: Boolean,
@@ -291,7 +291,7 @@ case class AlterTableUnsetPropertiesCommand(
  *   ALTER TABLE table [PARTITION spec] SET SERDEPROPERTIES serde_properties;
  * }}}
  */
-case class AlterTableSerDePropertiesCommand(
+case class AlterTableSerDeProperties(
     tableName: TableIdentifier,
     serdeClassName: Option[String],
     serdeProperties: Option[Map[String, String]],
@@ -330,7 +330,7 @@ case class AlterTableSerDePropertiesCommand(
  *   ALTER TABLE table ADD [IF NOT EXISTS] PARTITION spec [LOCATION 'loc1']
  * }}}
  */
-case class AlterTableAddPartitionCommand(
+case class AlterTableAddPartition(
     tableName: TableIdentifier,
     partitionSpecsAndLocs: Seq[(TablePartitionSpec, Option[String])],
     ifNotExists: Boolean)
@@ -361,7 +361,7 @@ case class AlterTableAddPartitionCommand(
  *   ALTER TABLE table PARTITION spec1 RENAME TO PARTITION spec2;
  * }}}
  */
-case class AlterTableRenamePartitionCommand(
+case class AlterTableRenamePartition(
     tableName: TableIdentifier,
     oldPartition: TablePartitionSpec,
     newPartition: TablePartitionSpec)
@@ -389,7 +389,7 @@ case class AlterTableRenamePartitionCommand(
  *   ALTER TABLE table DROP [IF EXISTS] PARTITION spec1[, PARTITION spec2, ...] [PURGE];
  * }}}
  */
-case class AlterTableDropPartitionCommand(
+case class AlterTableDropPartition(
     tableName: TableIdentifier,
     specs: Seq[TablePartitionSpec],
     ifExists: Boolean)
@@ -420,7 +420,7 @@ case class AlterTableDropPartitionCommand(
  *    ALTER TABLE table_name [PARTITION partition_spec] SET LOCATION "loc";
  * }}}
  */
-case class AlterTableSetLocationCommand(
+case class AlterTableSetLocation(
     tableName: TableIdentifier,
     partitionSpec: Option[TablePartitionSpec],
     location: String)
@@ -459,7 +459,7 @@ case class AlterTableSetLocationCommand(
 }
 
 
-object DDLUtils {
+private[sql] object DDLUtils {
 
   def isDatasourceTable(props: Map[String, String]): Boolean = {
     props.contains("spark.sql.sources.provider")

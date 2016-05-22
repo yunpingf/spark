@@ -20,13 +20,12 @@ package org.apache.spark.examples;
 import com.google.common.collect.Lists;
 import scala.Tuple2;
 import scala.Tuple3;
-
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
-import org.apache.spark.sql.SparkSession;
 
 import java.io.Serializable;
 import java.util.List;
@@ -100,12 +99,9 @@ public final class JavaLogQuery {
   }
 
   public static void main(String[] args) {
-    SparkSession spark = SparkSession
-      .builder()
-      .appName("JavaLogQuery")
-      .getOrCreate();
 
-    JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
+    SparkConf sparkConf = new SparkConf().setAppName("JavaLogQuery");
+    JavaSparkContext jsc = new JavaSparkContext(sparkConf);
 
     JavaRDD<String> dataSet = (args.length == 1) ? jsc.textFile(args[0]) : jsc.parallelize(exampleApacheLogs);
 
@@ -127,6 +123,6 @@ public final class JavaLogQuery {
     for (Tuple2<?,?> t : output) {
       System.out.println(t._1() + "\t" + t._2());
     }
-    spark.stop();
+    jsc.stop();
   }
 }

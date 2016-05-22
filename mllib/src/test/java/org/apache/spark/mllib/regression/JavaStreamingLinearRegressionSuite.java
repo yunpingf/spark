@@ -17,6 +17,7 @@
 
 package org.apache.spark.mllib.regression;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -35,7 +36,7 @@ import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import static org.apache.spark.streaming.JavaTestUtils.*;
 
-public class JavaStreamingLinearRegressionSuite {
+public class JavaStreamingLinearRegressionSuite implements Serializable {
 
   protected transient JavaStreamingContext ssc;
 

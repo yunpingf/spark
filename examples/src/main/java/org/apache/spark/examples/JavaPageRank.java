@@ -26,13 +26,14 @@ import scala.Tuple2;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.PairFunction;
-import org.apache.spark.sql.SparkSession;
 
 /**
  * Computes the PageRank of URLs from an input file. Input file should
@@ -72,17 +73,15 @@ public final class JavaPageRank {
 
     showWarning();
 
-    SparkSession spark = SparkSession
-      .builder()
-      .appName("JavaPageRank")
-      .getOrCreate();
+    SparkConf sparkConf = new SparkConf().setAppName("JavaPageRank");
+    JavaSparkContext ctx = new JavaSparkContext(sparkConf);
 
     // Loads in input file. It should be in format of:
     //     URL         neighbor URL
     //     URL         neighbor URL
     //     URL         neighbor URL
     //     ...
-    JavaRDD<String> lines = spark.read().text(args[0]).javaRDD();
+    JavaRDD<String> lines = ctx.textFile(args[0], 1);
 
     // Loads all URLs from input file and initialize their neighbors.
     JavaPairRDD<String, Iterable<String>> links = lines.mapToPair(
@@ -133,6 +132,6 @@ public final class JavaPageRank {
         System.out.println(tuple._1() + " has rank: " + tuple._2() + ".");
     }
 
-    spark.stop();
+    ctx.stop();
   }
 }
