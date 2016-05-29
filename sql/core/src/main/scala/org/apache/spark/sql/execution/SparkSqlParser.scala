@@ -82,10 +82,10 @@ class SparkSqlAstBuilder(conf: SQLConf) extends AstBuilder {
    *   RESET;
    * }}}
    */
-  override def visitResetConfiguration(
+  /*override def visitResetConfiguration(
       ctx: ResetConfigurationContext): LogicalPlan = withOrigin(ctx) {
     ResetCommand
-  }
+  }*/
 
   /**
    * Create an [[AnalyzeTableCommand]] command. This currently only implements the NOSCAN
