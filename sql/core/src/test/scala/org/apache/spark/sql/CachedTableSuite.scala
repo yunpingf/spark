@@ -79,17 +79,17 @@ class CachedTableSuite extends QueryTest with SQLTestUtils with SharedSQLContext
   }
 
   test("unpersist an uncached table will not raise exception") {
-    assert(None == spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None == spark.cacheManager.lookupCachedData(testData))
     testData.unpersist(blocking = true)
-    assert(None == spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None == spark.cacheManager.lookupCachedData(testData))
     testData.unpersist(blocking = false)
-    assert(None == spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None == spark.cacheManager.lookupCachedData(testData))
     testData.persist()
-    assert(None != spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None != spark.cacheManager.lookupCachedData(testData))
     testData.unpersist(blocking = true)
-    assert(None == spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None == spark.cacheManager.lookupCachedData(testData))
     testData.unpersist(blocking = false)
-    assert(None == spark.sharedState.cacheManager.lookupCachedData(testData))
+    assert(None == spark.cacheManager.lookupCachedData(testData))
   }
 
   test("cache table as select") {
@@ -311,14 +311,14 @@ class CachedTableSuite extends QueryTest with SQLTestUtils with SharedSQLContext
     spark.catalog.cacheTable("t1")
     spark.catalog.cacheTable("t2")
     spark.catalog.clearCache()
-    assert(spark.sharedState.cacheManager.isEmpty)
+    assert(spark.cacheManager.isEmpty)
 
     sql("SELECT key FROM testData LIMIT 10").createOrReplaceTempView("t1")
     sql("SELECT key FROM testData LIMIT 5").createOrReplaceTempView("t2")
     spark.catalog.cacheTable("t1")
     spark.catalog.cacheTable("t2")
     sql("Clear CACHE")
-    assert(spark.sharedState.cacheManager.isEmpty)
+    assert(spark.cacheManager.isEmpty)
   }
 
   test("Clear accumulators when uncacheTable to prevent memory leaking") {

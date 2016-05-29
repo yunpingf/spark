@@ -183,21 +183,16 @@ class PrefixSpan(object):
 
 def _test():
     import doctest
-    from pyspark.sql import SparkSession
     import pyspark.mllib.fpm
     globs = pyspark.mllib.fpm.__dict__.copy()
-    spark = SparkSession.builder\
-        .master("local[4]")\
-        .appName("mllib.fpm tests")\
-        .getOrCreate()
-    globs['sc'] = spark.sparkContext
+    globs['sc'] = SparkContext('local[4]', 'PythonTest')
     import tempfile
 
     temp_path = tempfile.mkdtemp()
     globs['temp_path'] = temp_path
     try:
         (failure_count, test_count) = doctest.testmod(globs=globs, optionflags=doctest.ELLIPSIS)
-        spark.stop()
+        globs['sc'].stop()
     finally:
         from shutil import rmtree
         try:

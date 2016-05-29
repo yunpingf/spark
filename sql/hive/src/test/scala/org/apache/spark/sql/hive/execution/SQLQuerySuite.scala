@@ -58,7 +58,7 @@ case class Order(
  */
 class SQLQuerySuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
   import hiveContext._
-  import spark.implicits._
+  import hiveContext.implicits._
 
   test("UDTF") {
     withUserDefinedFunction("udtf_count2" -> true) {
@@ -690,7 +690,7 @@ class SQLQuerySuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
     }
   }
 
-  test("SPARK-4699 SparkSession with Hive Support should be case insensitive by default") {
+  test("SPARK-4699 HiveContext should be case insensitive by default") {
     checkAnswer(
       sql("SELECT KEY FROM Src ORDER BY value"),
       sql("SELECT key FROM src ORDER BY value").collect().toSeq)
@@ -707,7 +707,7 @@ class SQLQuerySuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
 
     val rowRdd = sparkContext.parallelize(row :: Nil)
 
-    spark.createDataFrame(rowRdd, schema).createOrReplaceTempView("testTable")
+    hiveContext.createDataFrame(rowRdd, schema).createOrReplaceTempView("testTable")
 
     sql(
       """CREATE TABLE nullValuesInInnerComplexTypes
@@ -1417,7 +1417,7 @@ class SQLQuerySuite extends QueryTest with SQLTestUtils with TestHiveSingleton {
            """.stripMargin)
 
         checkAnswer(
-          spark.sql("SHOW TABLES").select('isTemporary).filter('tableName === "t2"),
+          spark.sqlContext.tables().select('isTemporary).filter('tableName === "t2"),
           Row(true)
         )
 

@@ -494,7 +494,7 @@ case class StringLocate(substr: Expression, str: Expression, start: Expression)
   extends TernaryExpression with ImplicitCastInputTypes {
 
   def this(substr: Expression, str: Expression) = {
-    this(substr, str, Literal(1))
+    this(substr, str, Literal(0))
   }
 
   override def children: Seq[Expression] = substr :: str :: start :: Nil
@@ -516,14 +516,9 @@ case class StringLocate(substr: Expression, str: Expression, start: Expression)
         if (l == null) {
           null
         } else {
-          val sVal = s.asInstanceOf[Int]
-          if (sVal < 1) {
-            0
-          } else {
-            l.asInstanceOf[UTF8String].indexOf(
-              r.asInstanceOf[UTF8String],
-              s.asInstanceOf[Int] - 1) + 1
-          }
+          l.asInstanceOf[UTF8String].indexOf(
+            r.asInstanceOf[UTF8String],
+            s.asInstanceOf[Int]) + 1
         }
       }
     }
@@ -542,10 +537,8 @@ case class StringLocate(substr: Expression, str: Expression, start: Expression)
         if (!${substrGen.isNull}) {
           ${strGen.code}
           if (!${strGen.isNull}) {
-            if (${startGen.value} > 0) {
-              ${ev.value} = ${strGen.value}.indexOf(${substrGen.value},
-                ${startGen.value} - 1) + 1;
-            }
+            ${ev.value} = ${strGen.value}.indexOf(${substrGen.value},
+              ${startGen.value}) + 1;
           } else {
             ${ev.isNull} = true;
           }

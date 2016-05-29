@@ -188,7 +188,7 @@ class StateStoreSuite extends SparkFunSuite with BeforeAndAfter with PrivateMeth
       provider.getStore(-1)
     }
 
-    // Prepare some data in the store
+    // Prepare some data in the stoer
     val store = provider.getStore(0)
     put(store, "a", 1)
     assert(store.commit() === 1)

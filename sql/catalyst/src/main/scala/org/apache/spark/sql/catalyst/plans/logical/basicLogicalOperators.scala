@@ -377,8 +377,7 @@ case class InsertIntoTable(
   }
 
   assert(overwrite || !ifNotExists)
-  override lazy val resolved: Boolean =
-    childrenResolved && table.resolved && expectedColumns.forall { expected =>
+  override lazy val resolved: Boolean = childrenResolved && expectedColumns.forall { expected =>
     child.output.size == expected.size && child.output.zip(expected).forall {
       case (childAttr, tableAttr) =>
         DataType.equalsIgnoreCompatibleNullability(childAttr.dataType, tableAttr.dataType)
@@ -530,7 +529,7 @@ private[sql] object Expand {
 
   /**
    * Apply the all of the GroupExpressions to every input row, hence we will get
-   * multiple output rows for an input row.
+   * multiple output rows for a input row.
    *
    * @param bitmasks The bitmask set represents the grouping sets
    * @param groupByAliases The aliased original group by expressions
@@ -572,7 +571,7 @@ private[sql] object Expand {
 
 /**
  * Apply a number of projections to every input row, hence we will get multiple output rows for
- * an input row.
+ * a input row.
  *
  * @param projections to apply
  * @param output of all projections.
@@ -591,7 +590,7 @@ case class Expand(
   }
 
   // This operator can reuse attributes (for example making them null when doing a roll up) so
-  // the constraints of the child may no longer be valid.
+  // the contraints of the child may no longer be valid.
   override protected def validConstraints: Set[Expression] = Set.empty[Expression]
 }
 
@@ -734,7 +733,6 @@ case class Distinct(child: LogicalPlan) extends UnaryNode {
  */
 case class Repartition(numPartitions: Int, shuffle: Boolean, child: LogicalPlan)
   extends UnaryNode {
-  require(numPartitions > 0, s"Number of partitions ($numPartitions) must be positive.")
   override def output: Seq[Attribute] = child.output
 }
 

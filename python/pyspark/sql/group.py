@@ -195,15 +195,13 @@ class GroupedData(object):
 
 def _test():
     import doctest
-    from pyspark.sql import Row, SparkSession
+    from pyspark.context import SparkContext
+    from pyspark.sql import Row, SQLContext
     import pyspark.sql.group
     globs = pyspark.sql.group.__dict__.copy()
-    spark = SparkSession.builder\
-        .master("local[4]")\
-        .appName("sql.group tests")\
-        .getOrCreate()
-    sc = spark.sparkContext
+    sc = SparkContext('local[4]', 'PythonTest')
     globs['sc'] = sc
+    globs['sqlContext'] = SQLContext(sc)
     globs['df'] = sc.parallelize([(2, 'Alice'), (5, 'Bob')]) \
         .toDF(StructType([StructField('age', IntegerType()),
                           StructField('name', StringType())]))
@@ -218,7 +216,7 @@ def _test():
     (failure_count, test_count) = doctest.testmod(
         pyspark.sql.group, globs=globs,
         optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE | doctest.REPORT_NDIFF)
-    spark.stop()
+    globs['sc'].stop()
     if failure_count:
         exit(-1)
 

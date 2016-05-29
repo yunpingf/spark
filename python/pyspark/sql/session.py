@@ -138,39 +138,24 @@ class SparkSession(object):
             """Gets an existing :class:`SparkSession` or, if there is no existing one, creates a
             new one based on the options set in this builder.
 
-            This method first checks whether there is a valid global default SparkSession, and if
-            yes, return that one. If no valid global default SparkSession exists, the method
-            creates a new SparkSession and assigns the newly created SparkSession as the global
-            default.
-
-            >>> s1 = SparkSession.builder.config("k1", "v1").getOrCreate()
-            >>> s1.conf.get("k1") == s1.sparkContext.getConf().get("k1") == "v1"
-            True
+            This method first checks whether there is a valid thread-local SparkSession,
+            and if yes, return that one. It then checks whether there is a valid global
+            default SparkSession, and if yes, return that one. If no valid global default
+            SparkSession exists, the method creates a new SparkSession and assigns the
+            newly created SparkSession as the global default.
 
             In case an existing SparkSession is returned, the config options specified
             in this builder will be applied to the existing SparkSession.
-
-            >>> s2 = SparkSession.builder.config("k2", "v2").getOrCreate()
-            >>> s1.conf.get("k1") == s2.conf.get("k1")
-            True
-            >>> s1.conf.get("k2") == s2.conf.get("k2")
-            True
             """
             with self._lock:
-                from pyspark.context import SparkContext
                 from pyspark.conf import SparkConf
-                session = SparkSession._instantiatedContext
-                if session is None:
-                    sparkConf = SparkConf()
-                    for key, value in self._options.items():
-                        sparkConf.set(key, value)
-                    sc = SparkContext.getOrCreate(sparkConf)
-                    session = SparkSession(sc)
+                from pyspark.context import SparkContext
+                from pyspark.sql.context import SQLContext
+                sparkConf = SparkConf()
                 for key, value in self._options.items():
-                    session.conf.set(key, value)
-                for key, value in self._options.items():
-                    session.sparkContext._conf.set(key, value)
-                return session
+                    sparkConf.set(key, value)
+                sparkContext = SparkContext.getOrCreate(sparkConf)
+                return SQLContext.getOrCreate(sparkContext).sparkSession
 
     builder = Builder()
 

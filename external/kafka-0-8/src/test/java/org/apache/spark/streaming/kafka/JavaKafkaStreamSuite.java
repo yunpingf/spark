@@ -122,23 +122,14 @@ public class JavaKafkaStreamSuite implements Serializable {
     ssc.start();
 
     long startTime = System.currentTimeMillis();
-    AssertionError lastError = null;
-    while (System.currentTimeMillis() - startTime < 20000) {
-      try {
-        Assert.assertEquals(sent.size(), result.size());
-        for (Map.Entry<String, Integer> e : sent.entrySet()) {
-          Assert.assertEquals(e.getValue().intValue(), result.get(e.getKey()).intValue());
-        }
-        return;
-      } catch (AssertionError e) {
-        lastError = e;
-      }
+    boolean sizeMatches = false;
+    while (!sizeMatches && System.currentTimeMillis() - startTime < 20000) {
+      sizeMatches = sent.size() == result.size();
       Thread.sleep(200);
     }
-    if (lastError != null) {
-      throw lastError;
-    } else {
-      Assert.fail("timeout");
+    Assert.assertEquals(sent.size(), result.size());
+    for (Map.Entry<String, Integer> e : sent.entrySet()) {
+      Assert.assertEquals(e.getValue().intValue(), result.get(e.getKey()).intValue());
     }
   }
 }

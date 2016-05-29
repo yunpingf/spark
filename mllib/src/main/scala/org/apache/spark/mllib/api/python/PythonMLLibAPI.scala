@@ -30,7 +30,8 @@ import net.razorvine.pickle._
 
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.api.python.SerDeUtil
-import org.apache.spark.ml.linalg.{DenseMatrix => NewDenseMatrix, DenseVector => NewDenseVector, SparseMatrix => NewSparseMatrix, SparseVector => NewSparseVector, Vectors => NewVectors}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseMatrix => NewDenseMatrix, DenseVector => NewDenseVector, SparseMatrix => NewSparseMatrix, SparseVector => NewSparseVector, Vector => NewVector, Vectors => NewVectors}
 import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.clustering._
 import org.apache.spark.mllib.evaluation.RankingMetrics
@@ -42,7 +43,8 @@ import org.apache.spark.mllib.optimization._
 import org.apache.spark.mllib.random.{RandomRDDs => RG}
 import org.apache.spark.mllib.recommendation._
 import org.apache.spark.mllib.regression._
-import org.apache.spark.mllib.stat.{KernelDensity, MultivariateStatisticalSummary, Statistics}
+import org.apache.spark.mllib.stat.{
+  KernelDensity, MultivariateStatisticalSummary, Statistics}
 import org.apache.spark.mllib.stat.correlation.CorrelationNames
 import org.apache.spark.mllib.stat.distribution.MultivariateGaussian
 import org.apache.spark.mllib.stat.test.{ChiSqTestResult, KolmogorovSmirnovTestResult}
@@ -54,7 +56,7 @@ import org.apache.spark.mllib.tree.model.{DecisionTreeModel, GradientBoostedTree
   RandomForestModel}
 import org.apache.spark.mllib.util.{LinearDataGenerator, MLUtils}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.Utils
 
@@ -150,7 +152,7 @@ private[python] class PythonMLLibAPI extends Serializable {
       intercept: Boolean,
       validateData: Boolean,
       convergenceTol: Double): JList[Object] = {
-    val lrAlg = new LinearRegressionWithSGD(1.0, 100, 0.0, 1.0)
+    val lrAlg = new LinearRegressionWithSGD()
     lrAlg.setIntercept(intercept)
       .setValidateData(validateData)
     lrAlg.optimizer
@@ -179,7 +181,7 @@ private[python] class PythonMLLibAPI extends Serializable {
       intercept: Boolean,
       validateData: Boolean,
       convergenceTol: Double): JList[Object] = {
-    val lassoAlg = new LassoWithSGD(1.0, 100, 0.01, 1.0)
+    val lassoAlg = new LassoWithSGD()
     lassoAlg.setIntercept(intercept)
       .setValidateData(validateData)
     lassoAlg.optimizer
@@ -207,7 +209,7 @@ private[python] class PythonMLLibAPI extends Serializable {
       intercept: Boolean,
       validateData: Boolean,
       convergenceTol: Double): JList[Object] = {
-    val ridgeAlg = new RidgeRegressionWithSGD(1.0, 100, 0.01, 1.0)
+    val ridgeAlg = new RidgeRegressionWithSGD()
     ridgeAlg.setIntercept(intercept)
       .setValidateData(validateData)
     ridgeAlg.optimizer
@@ -266,7 +268,7 @@ private[python] class PythonMLLibAPI extends Serializable {
       intercept: Boolean,
       validateData: Boolean,
       convergenceTol: Double): JList[Object] = {
-    val LogRegAlg = new LogisticRegressionWithSGD(1.0, 100, 0.01, 1.0)
+    val LogRegAlg = new LogisticRegressionWithSGD()
     LogRegAlg.setIntercept(intercept)
       .setValidateData(validateData)
     LogRegAlg.optimizer
@@ -1176,9 +1178,8 @@ private[python] class PythonMLLibAPI extends Serializable {
   def getIndexedRows(indexedRowMatrix: IndexedRowMatrix): DataFrame = {
     // We use DataFrames for serialization of IndexedRows to Python,
     // so return a DataFrame.
-    val sc = indexedRowMatrix.rows.sparkContext
-    val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
-    spark.createDataFrame(indexedRowMatrix.rows)
+    val sqlContext = SQLContext.getOrCreate(indexedRowMatrix.rows.sparkContext)
+    sqlContext.createDataFrame(indexedRowMatrix.rows)
   }
 
   /**
@@ -1187,9 +1188,8 @@ private[python] class PythonMLLibAPI extends Serializable {
   def getMatrixEntries(coordinateMatrix: CoordinateMatrix): DataFrame = {
     // We use DataFrames for serialization of MatrixEntry entries to
     // Python, so return a DataFrame.
-    val sc = coordinateMatrix.entries.sparkContext
-    val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
-    spark.createDataFrame(coordinateMatrix.entries)
+    val sqlContext = SQLContext.getOrCreate(coordinateMatrix.entries.sparkContext)
+    sqlContext.createDataFrame(coordinateMatrix.entries)
   }
 
   /**
@@ -1198,9 +1198,8 @@ private[python] class PythonMLLibAPI extends Serializable {
   def getMatrixBlocks(blockMatrix: BlockMatrix): DataFrame = {
     // We use DataFrames for serialization of sub-matrix blocks to
     // Python, so return a DataFrame.
-    val sc = blockMatrix.blocks.sparkContext
-    val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
-    spark.createDataFrame(blockMatrix.blocks)
+    val sqlContext = SQLContext.getOrCreate(blockMatrix.blocks.sparkContext)
+    sqlContext.createDataFrame(blockMatrix.blocks)
   }
 }
 

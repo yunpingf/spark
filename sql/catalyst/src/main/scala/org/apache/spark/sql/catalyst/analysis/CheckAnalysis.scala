@@ -18,7 +18,6 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.catalog.SimpleCatalogRelation
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.plans.UsingJoin
@@ -215,7 +214,7 @@ trait CheckAnalysis extends PredicateHelper {
               if (!RowOrdering.isOrderable(expr.dataType)) {
                 failAnalysis(
                   s"expression ${expr.sql} cannot be used as a grouping expression " +
-                    s"because its data type ${expr.dataType.simpleString} is not an orderable " +
+                    s"because its data type ${expr.dataType.simpleString} is not a orderable " +
                     s"data type.")
               }
 
@@ -304,20 +303,6 @@ trait CheckAnalysis extends PredicateHelper {
                  |Failure when resolving conflicting references in Except:
                  |$plan
                  |Conflicting attributes: ${conflictingAttributes.mkString(",")}
-               """.stripMargin)
-
-          case s: SimpleCatalogRelation =>
-            failAnalysis(
-              s"""
-                 |Please enable Hive support when selecting the regular tables:
-                 |${s.catalogTable.identifier}
-               """.stripMargin)
-
-          case InsertIntoTable(s: SimpleCatalogRelation, _, _, _, _) =>
-            failAnalysis(
-              s"""
-                 |Please enable Hive support when inserting the regular tables:
-                 |${s.catalogTable.identifier}
                """.stripMargin)
 
           case o if !o.resolved =>

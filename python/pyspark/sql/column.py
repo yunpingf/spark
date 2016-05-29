@@ -434,15 +434,13 @@ class Column(object):
 
 def _test():
     import doctest
-    from pyspark.sql import SparkSession
+    from pyspark.context import SparkContext
+    from pyspark.sql import SQLContext
     import pyspark.sql.column
     globs = pyspark.sql.column.__dict__.copy()
-    spark = SparkSession.builder\
-        .master("local[4]")\
-        .appName("sql.column tests")\
-        .getOrCreate()
-    sc = spark.sparkContext
+    sc = SparkContext('local[4]', 'PythonTest')
     globs['sc'] = sc
+    globs['sqlContext'] = SQLContext(sc)
     globs['df'] = sc.parallelize([(2, 'Alice'), (5, 'Bob')]) \
         .toDF(StructType([StructField('age', IntegerType()),
                           StructField('name', StringType())]))
@@ -450,7 +448,7 @@ def _test():
     (failure_count, test_count) = doctest.testmod(
         pyspark.sql.column, globs=globs,
         optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE | doctest.REPORT_NDIFF)
-    spark.stop()
+    globs['sc'].stop()
     if failure_count:
         exit(-1)
 

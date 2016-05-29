@@ -347,17 +347,13 @@ class LinearDataGenerator(object):
 
 def _test():
     import doctest
-    from pyspark.sql import SparkSession
+    from pyspark.context import SparkContext
     globs = globals().copy()
     # The small batch size here ensures that we see multiple batches,
     # even in these small test examples:
-    spark = SparkSession.builder\
-        .master("local[2]")\
-        .appName("mllib.util tests")\
-        .getOrCreate()
-    globs['sc'] = spark.sparkContext
+    globs['sc'] = SparkContext('local[2]', 'PythonTest', batchSize=2)
     (failure_count, test_count) = doctest.testmod(globs=globs, optionflags=doctest.ELLIPSIS)
-    spark.stop()
+    globs['sc'].stop()
     if failure_count:
         exit(-1)
 

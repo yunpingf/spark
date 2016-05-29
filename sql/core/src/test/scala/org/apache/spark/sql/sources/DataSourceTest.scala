@@ -22,9 +22,16 @@ import org.apache.spark.sql.internal.SQLConf
 
 private[sql] abstract class DataSourceTest extends QueryTest {
 
+  // We want to test some edge cases.
+  protected lazy val caseInsensitiveContext: SQLContext = {
+    val ctx = new SQLContext(spark.sparkContext)
+    ctx.setConf(SQLConf.CASE_SENSITIVE, false)
+    ctx
+  }
+
   protected def sqlTest(sqlString: String, expectedAnswer: Seq[Row]) {
     test(sqlString) {
-      checkAnswer(spark.sql(sqlString), expectedAnswer)
+      checkAnswer(caseInsensitiveContext.sql(sqlString), expectedAnswer)
     }
   }
 

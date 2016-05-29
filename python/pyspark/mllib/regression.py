@@ -648,7 +648,7 @@ class IsotonicRegressionModel(Saveable, Loader):
 
     @since("1.4.0")
     def save(self, sc, path):
-        """Save an IsotonicRegressionModel."""
+        """Save a IsotonicRegressionModel."""
         java_boundaries = _py2java(sc, self.boundaries.tolist())
         java_predictions = _py2java(sc, self.predictions.tolist())
         java_model = sc._jvm.org.apache.spark.mllib.regression.IsotonicRegressionModel(
@@ -658,7 +658,7 @@ class IsotonicRegressionModel(Saveable, Loader):
     @classmethod
     @since("1.4.0")
     def load(cls, sc, path):
-        """Load an IsotonicRegressionModel."""
+        """Load a IsotonicRegressionModel."""
         java_model = sc._jvm.org.apache.spark.mllib.regression.IsotonicRegressionModel.load(
             sc._jsc.sc(), path)
         py_boundaries = _java2py(sc, java_model.boundaryVector()).toArray()
@@ -694,7 +694,7 @@ class IsotonicRegression(object):
     @since("1.4.0")
     def train(cls, data, isotonic=True):
         """
-        Train an isotonic regression model on the given data.
+        Train a isotonic regression model on the given data.
 
         :param data:
           RDD of (label, feature, weight) tuples.
@@ -824,16 +824,12 @@ class StreamingLinearRegressionWithSGD(StreamingLinearAlgorithm):
 
 def _test():
     import doctest
-    from pyspark.sql import SparkSession
+    from pyspark import SparkContext
     import pyspark.mllib.regression
     globs = pyspark.mllib.regression.__dict__.copy()
-    spark = SparkSession.builder\
-        .master("local[2]")\
-        .appName("mllib.regression tests")\
-        .getOrCreate()
-    globs['sc'] = spark.sparkContext
+    globs['sc'] = SparkContext('local[2]', 'PythonTest', batchSize=2)
     (failure_count, test_count) = doctest.testmod(globs=globs, optionflags=doctest.ELLIPSIS)
-    spark.stop()
+    globs['sc'].stop()
     if failure_count:
         exit(-1)
 

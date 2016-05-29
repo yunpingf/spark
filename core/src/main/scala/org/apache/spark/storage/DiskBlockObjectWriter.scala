@@ -203,7 +203,8 @@ private[spark] class DiskBlockObjectWriter(
     numRecordsWritten += 1
     writeMetrics.incRecordsWritten(1)
 
-    if (numRecordsWritten % 16384 == 0) {
+    // TODO: call updateBytesWritten() less frequently.
+    if (numRecordsWritten % 32 == 0) {
       updateBytesWritten()
     }
   }

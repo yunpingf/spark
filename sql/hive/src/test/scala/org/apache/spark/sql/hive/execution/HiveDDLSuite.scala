@@ -31,7 +31,7 @@ import org.apache.spark.sql.test.SQLTestUtils
 
 class HiveDDLSuite
   extends QueryTest with SQLTestUtils with TestHiveSingleton with BeforeAndAfterEach {
-  import spark.implicits._
+  import hiveContext.implicits._
 
   override def afterEach(): Unit = {
     try {
@@ -52,7 +52,7 @@ class HiveDDLSuite
         new Path(new Path(dbPath.get), tableIdentifier.table).toString
       }
     val filesystemPath = new Path(expectedTablePath)
-    val fs = filesystemPath.getFileSystem(spark.sessionState.newHadoopConf())
+    val fs = filesystemPath.getFileSystem(hiveContext.sessionState.newHadoopConf())
     fs.exists(filesystemPath)
   }
 
@@ -86,7 +86,8 @@ class HiveDDLSuite
           """.stripMargin)
 
         val hiveTable =
-          spark.sessionState.catalog.getTableMetadata(TableIdentifier(tabName, Some("default")))
+          hiveContext.sessionState.catalog
+            .getTableMetadata(TableIdentifier(tabName, Some("default")))
         assert(hiveTable.tableType == CatalogTableType.EXTERNAL)
 
         assert(tmpDir.listFiles.nonEmpty)
@@ -112,7 +113,8 @@ class HiveDDLSuite
         }
 
         val hiveTable =
-          spark.sessionState.catalog.getTableMetadata(TableIdentifier(tabName, Some("default")))
+          hiveContext.sessionState.catalog
+            .getTableMetadata(TableIdentifier(tabName, Some("default")))
         // This data source table is external table
         assert(hiveTable.tableType == CatalogTableType.EXTERNAL)
 
@@ -125,7 +127,7 @@ class HiveDDLSuite
   }
 
   test("create table and view with comment") {
-    val catalog = spark.sessionState.catalog
+    val catalog = hiveContext.sessionState.catalog
     val tabName = "tab1"
     withTable(tabName) {
       sql(s"CREATE TABLE $tabName(c1 int) COMMENT 'BLABLA'")
@@ -141,7 +143,7 @@ class HiveDDLSuite
   }
 
   test("add/drop partitions - external table") {
-    val catalog = spark.sessionState.catalog
+    val catalog = hiveContext.sessionState.catalog
     withTempDir { tmpDir =>
       val basePath = tmpDir.getCanonicalPath
       val partitionPath_1stCol_part1 = new File(basePath + "/ds=2008-04-08")
@@ -240,7 +242,7 @@ class HiveDDLSuite
       val oldViewName = "view1"
       val newViewName = "view2"
       withView(oldViewName, newViewName) {
-        val catalog = spark.sessionState.catalog
+        val catalog = hiveContext.sessionState.catalog
         sql(s"CREATE VIEW $oldViewName AS SELECT * FROM $tabName")
 
         assert(catalog.tableExists(TableIdentifier(oldViewName)))
@@ -258,7 +260,7 @@ class HiveDDLSuite
       spark.range(10).write.saveAsTable(tabName)
       val viewName = "view1"
       withView(viewName) {
-        val catalog = spark.sessionState.catalog
+        val catalog = hiveContext.sessionState.catalog
         sql(s"CREATE VIEW $viewName AS SELECT * FROM $tabName")
 
         assert(catalog.getTableMetadata(TableIdentifier(viewName))
@@ -285,7 +287,7 @@ class HiveDDLSuite
           sql(s"ALTER VIEW $viewName UNSET TBLPROPERTIES ('p')")
         }.getMessage
         assert(message.contains(
-          "Attempted to unset non-existent property 'p' in table '`view1`'"))
+          "attempted to unset non-existent property 'p' in table '`view1`'"))
       }
     }
   }
@@ -297,7 +299,7 @@ class HiveDDLSuite
       val oldViewName = "view1"
       val newViewName = "view2"
       withView(oldViewName, newViewName) {
-        val catalog = spark.sessionState.catalog
+        val catalog = hiveContext.sessionState.catalog
         sql(s"CREATE VIEW $oldViewName AS SELECT * FROM $tabName")
 
         assert(catalog.tableExists(TableIdentifier(tabName)))
@@ -389,7 +391,7 @@ class HiveDDLSuite
     val catalog = spark.sessionState.catalog
     val dbName = "db1"
     val tabName = "tab1"
-    val fs = new Path(tmpDir.toString).getFileSystem(spark.sessionState.newHadoopConf())
+    val fs = new Path(tmpDir.toString).getFileSystem(hiveContext.sessionState.newHadoopConf())
     withTable(tabName) {
       if (dirExists) {
         assert(tmpDir.listFiles.isEmpty)
@@ -439,7 +441,7 @@ class HiveDDLSuite
       val path = tmpDir.toString
       withSQLConf(SQLConf.WAREHOUSE_PATH.key -> path) {
         val dbName = "db1"
-        val fs = new Path(path).getFileSystem(spark.sessionState.newHadoopConf())
+        val fs = new Path(path).getFileSystem(hiveContext.sessionState.newHadoopConf())
         val dbPath = new Path(path)
         // the database directory does not exist
         assert(!fs.exists(dbPath))

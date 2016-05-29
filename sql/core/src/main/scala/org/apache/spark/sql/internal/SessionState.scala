@@ -92,7 +92,7 @@ private[sql] class SessionState(sparkSession: SparkSession) {
    * Internal catalog for managing table and database states.
    */
   lazy val catalog = new SessionCatalog(
-    sparkSession.sharedState.externalCatalog,
+    sparkSession.externalCatalog,
     functionResourceLoader,
     functionRegistry,
     conf,
@@ -100,7 +100,6 @@ private[sql] class SessionState(sparkSession: SparkSession) {
 
   /**
    * Interface exposed to the user for registering user-defined functions.
-   * Note that the user-defined functions must be deterministic.
    */
   lazy val udf: UDFRegistration = new UDFRegistration(functionRegistry)
 
@@ -160,8 +159,6 @@ private[sql] class SessionState(sparkSession: SparkSession) {
   // ------------------------------------------------------
   //  Helper methods, partially leftover from pre-2.0 days
   // ------------------------------------------------------
-
-  def executeSql(sql: String): QueryExecution = executePlan(sqlParser.parsePlan(sql))
 
   def executePlan(plan: LogicalPlan): QueryExecution = new QueryExecution(sparkSession, plan)
 

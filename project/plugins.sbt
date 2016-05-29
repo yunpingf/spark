@@ -20,4 +20,7 @@ libraryDependencies += "org.ow2.asm"  % "asm" % "5.0.3"
 
 libraryDependencies += "org.ow2.asm"  % "asm-commons" % "5.0.3"
 
-addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.11")
+// TODO I am not sure we want such a dep.
+resolvers += "simplytyped" at "http://simplytyped.github.io/repo/releases"
+
+addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.10")

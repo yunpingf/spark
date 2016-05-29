@@ -114,7 +114,7 @@ class BinaryClassificationEvaluator(JavaEvaluator, HasLabelCol, HasRawPrediction
     >>> from pyspark.ml.linalg import Vectors
     >>> scoreAndLabels = map(lambda x: (Vectors.dense([1.0 - x[0], x[0]]), x[1]),
     ...    [(0.1, 0.0), (0.1, 1.0), (0.4, 0.0), (0.6, 0.0), (0.6, 1.0), (0.6, 1.0), (0.8, 1.0)])
-    >>> dataset = spark.createDataFrame(scoreAndLabels, ["raw", "label"])
+    >>> dataset = sqlContext.createDataFrame(scoreAndLabels, ["raw", "label"])
     ...
     >>> evaluator = BinaryClassificationEvaluator(rawPredictionCol="raw")
     >>> evaluator.evaluate(dataset)
@@ -181,7 +181,7 @@ class RegressionEvaluator(JavaEvaluator, HasLabelCol, HasPredictionCol):
 
     >>> scoreAndLabels = [(-28.98343821, -27.0), (20.21491975, 21.5),
     ...   (-25.98418959, -22.0), (30.69731842, 33.0), (74.69283752, 71.0)]
-    >>> dataset = spark.createDataFrame(scoreAndLabels, ["raw", "label"])
+    >>> dataset = sqlContext.createDataFrame(scoreAndLabels, ["raw", "label"])
     ...
     >>> evaluator = RegressionEvaluator(predictionCol="raw")
     >>> evaluator.evaluate(dataset)
@@ -253,7 +253,7 @@ class MulticlassClassificationEvaluator(JavaEvaluator, HasLabelCol, HasPredictio
 
     >>> scoreAndLabels = [(0.0, 0.0), (0.0, 1.0), (0.0, 0.0),
     ...     (1.0, 0.0), (1.0, 1.0), (1.0, 1.0), (1.0, 1.0), (2.0, 2.0), (2.0, 0.0)]
-    >>> dataset = spark.createDataFrame(scoreAndLabels, ["prediction", "label"])
+    >>> dataset = sqlContext.createDataFrame(scoreAndLabels, ["prediction", "label"])
     ...
     >>> evaluator = MulticlassClassificationEvaluator(predictionCol="prediction")
     >>> evaluator.evaluate(dataset)
@@ -313,19 +313,17 @@ class MulticlassClassificationEvaluator(JavaEvaluator, HasLabelCol, HasPredictio
 
 if __name__ == "__main__":
     import doctest
-    from pyspark.sql import SparkSession
+    from pyspark.context import SparkContext
+    from pyspark.sql import SQLContext
     globs = globals().copy()
     # The small batch size here ensures that we see multiple batches,
     # even in these small test examples:
-    spark = SparkSession.builder\
-        .master("local[2]")\
-        .appName("ml.evaluation tests")\
-        .getOrCreate()
-    sc = spark.sparkContext
+    sc = SparkContext("local[2]", "ml.evaluation tests")
+    sqlContext = SQLContext(sc)
     globs['sc'] = sc
-    globs['spark'] = spark
+    globs['sqlContext'] = sqlContext
     (failure_count, test_count) = doctest.testmod(
         globs=globs, optionflags=doctest.ELLIPSIS)
-    spark.stop()
+    sc.stop()
     if failure_count:
         exit(-1)

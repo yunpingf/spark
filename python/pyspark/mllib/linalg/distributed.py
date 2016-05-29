@@ -1184,18 +1184,16 @@ class BlockMatrix(DistributedMatrix):
 
 def _test():
     import doctest
-    from pyspark.sql import SparkSession
+    from pyspark import SparkContext
+    from pyspark.sql import SQLContext
     from pyspark.mllib.linalg import Matrices
     import pyspark.mllib.linalg.distributed
     globs = pyspark.mllib.linalg.distributed.__dict__.copy()
-    spark = SparkSession.builder\
-        .master("local[2]")\
-        .appName("mllib.linalg.distributed tests")\
-        .getOrCreate()
-    globs['sc'] = spark.sparkContext
+    globs['sc'] = SparkContext('local[2]', 'PythonTest', batchSize=2)
+    globs['sqlContext'] = SQLContext(globs['sc'])
     globs['Matrices'] = Matrices
     (failure_count, test_count) = doctest.testmod(globs=globs, optionflags=doctest.ELLIPSIS)
-    spark.stop()
+    globs['sc'].stop()
     if failure_count:
         exit(-1)
 

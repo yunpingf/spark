@@ -57,7 +57,7 @@ case class ParquetDataWithKeyAndComplexTypes(
  */
 class ParquetMetastoreSuite extends ParquetPartitioningTest {
   import hiveContext._
-  import spark.implicits._
+  import hiveContext.implicits._
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -571,7 +571,7 @@ class ParquetMetastoreSuite extends ParquetPartitioningTest {
  */
 class ParquetSourceSuite extends ParquetPartitioningTest {
   import testImplicits._
-  import spark._
+  import hiveContext._
 
   override def beforeAll(): Unit = {
     super.beforeAll()

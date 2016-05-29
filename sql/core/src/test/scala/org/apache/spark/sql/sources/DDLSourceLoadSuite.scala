@@ -27,23 +27,23 @@ class DDLSourceLoadSuite extends DataSourceTest with SharedSQLContext {
 
   test("data sources with the same name") {
     intercept[RuntimeException] {
-      spark.read.format("Fluet da Bomb").load()
+      caseInsensitiveContext.read.format("Fluet da Bomb").load()
     }
   }
 
   test("load data source from format alias") {
-    spark.read.format("gathering quorum").load().schema ==
+    caseInsensitiveContext.read.format("gathering quorum").load().schema ==
       StructType(Seq(StructField("stringType", StringType, nullable = false)))
   }
 
   test("specify full classname with duplicate formats") {
-    spark.read.format("org.apache.spark.sql.sources.FakeSourceOne")
+    caseInsensitiveContext.read.format("org.apache.spark.sql.sources.FakeSourceOne")
       .load().schema == StructType(Seq(StructField("stringType", StringType, nullable = false)))
   }
 
-  test("should fail to load ORC without Hive Support") {
+  test("should fail to load ORC without HiveContext") {
     intercept[ClassNotFoundException] {
-      spark.read.format("orc").load()
+      caseInsensitiveContext.read.format("orc").load()
     }
   }
 }

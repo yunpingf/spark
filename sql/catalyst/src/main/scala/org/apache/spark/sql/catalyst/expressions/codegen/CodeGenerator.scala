@@ -718,17 +718,27 @@ class CodegenContext {
   def getPlaceHolderToComments(): collection.Map[String, String] = placeHolderToComments
 
   /**
+   * Register a multi-line comment and return the corresponding place holder
+   */
+  private def registerMultilineComment(text: String): String = {
+    val placeHolder = s"/*${freshName("c")}*/"
+    val comment = text.split("(\r\n)|\r|\n").mkString("/**\n * ", "\n * ", "\n */")
+    placeHolderToComments += (placeHolder -> comment)
+    placeHolder
+  }
+
+  /**
    * Register a comment and return the corresponding place holder
    */
   def registerComment(text: String): String = {
-    val name = freshName("c")
-    val comment = if (text.contains("\n") || text.contains("\r")) {
-      text.split("(\r\n)|\r|\n").mkString("/**\n * ", "\n * ", "\n */")
+    if (text.contains("\n") || text.contains("\r")) {
+      registerMultilineComment(text)
     } else {
-      s"// $text"
+      val placeHolder = s"/*${freshName("c")}*/"
+      val safeComment = s"// $text"
+      placeHolderToComments += (placeHolder -> safeComment)
+      placeHolder
     }
-    placeHolderToComments += (name -> comment)
-    s"/*$name*/"
   }
 }
 

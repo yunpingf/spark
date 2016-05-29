@@ -17,8 +17,6 @@
 
 package org.apache.spark.sql.execution.command
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.catalog.{CatalogTableType, FunctionResource}
 import org.apache.spark.sql.catalyst.catalog.FunctionResourceType
@@ -27,13 +25,12 @@ import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.execution.SparkSqlParser
 import org.apache.spark.sql.execution.datasources.{BucketSpec, CreateTableUsing}
-import org.apache.spark.sql.internal.{HiveSerDe, SQLConf}
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
-
 
 // TODO: merge this with DDLSuite (SPARK-14441)
 class DDLCommandSuite extends PlanTest {
-  private lazy val parser = new SparkSqlParser(new SQLConf)
+  private val parser = new SparkSqlParser(new SQLConf)
 
   private def assertUnsupported(sql: String, containsThesePhrases: Seq[String] = Seq()): Unit = {
     val e = intercept[ParseException] {
@@ -41,15 +38,6 @@ class DDLCommandSuite extends PlanTest {
     }
     assert(e.getMessage.toLowerCase.contains("operation not allowed"))
     containsThesePhrases.foreach { p => assert(e.getMessage.toLowerCase.contains(p.toLowerCase)) }
-  }
-
-  private def parseAs[T: ClassTag](query: String): T = {
-    parser.parsePlan(query) match {
-      case t: T => t
-      case other =>
-        fail(s"Expected to parse ${classTag[T].runtimeClass} from query," +
-          s"got ${other.getClass.getName}: $query")
-    }
   }
 
   test("create database") {
@@ -237,69 +225,19 @@ class DDLCommandSuite extends PlanTest {
     comparePlans(parsed4, expected4)
   }
 
-  test("create table - row format and table file format") {
-    val createTableStart = "CREATE TABLE my_tab ROW FORMAT"
-    val fileFormat = s"STORED AS INPUTFORMAT 'inputfmt' OUTPUTFORMAT 'outputfmt'"
-    val query1 = s"$createTableStart SERDE 'anything' $fileFormat"
-    val query2 = s"$createTableStart DELIMITED FIELDS TERMINATED BY ' ' $fileFormat"
-
-    // No conflicting serdes here, OK
-    val parsed1 = parseAs[CreateTableCommand](query1)
-    assert(parsed1.table.storage.serde == Some("anything"))
-    assert(parsed1.table.storage.inputFormat == Some("inputfmt"))
-    assert(parsed1.table.storage.outputFormat == Some("outputfmt"))
-    val parsed2 = parseAs[CreateTableCommand](query2)
-    assert(parsed2.table.storage.serde.isEmpty)
-    assert(parsed2.table.storage.inputFormat == Some("inputfmt"))
-    assert(parsed2.table.storage.outputFormat == Some("outputfmt"))
-  }
-
-  test("create table - row format serde and generic file format") {
-    val allSources = Seq("parquet", "orc", "avro", "sequencefile", "rcfile", "textfile")
-    val supportedSources = Set("sequencefile", "rcfile", "textfile")
-
-    allSources.foreach { s =>
-      val query = s"CREATE TABLE my_tab ROW FORMAT SERDE 'anything' STORED AS $s"
-      if (supportedSources.contains(s)) {
-        val ct = parseAs[CreateTableCommand](query)
-        val hiveSerde = HiveSerDe.sourceToSerDe(s, new SQLConf)
-        assert(hiveSerde.isDefined)
-        assert(ct.table.storage.serde == Some("anything"))
-        assert(ct.table.storage.inputFormat == hiveSerde.get.inputFormat)
-        assert(ct.table.storage.outputFormat == hiveSerde.get.outputFormat)
-      } else {
-        assertUnsupported(query, Seq("row format serde", "incompatible", s))
-      }
-    }
-  }
-
-  test("create table - row format delimited and generic file format") {
-    val allSources = Seq("parquet", "orc", "avro", "sequencefile", "rcfile", "textfile")
-    val supportedSources = Set("textfile")
-
-    allSources.foreach { s =>
-      val query = s"CREATE TABLE my_tab ROW FORMAT DELIMITED FIELDS TERMINATED BY ' ' STORED AS $s"
-      if (supportedSources.contains(s)) {
-        val ct = parseAs[CreateTableCommand](query)
-        val hiveSerde = HiveSerDe.sourceToSerDe(s, new SQLConf)
-        assert(hiveSerde.isDefined)
-        assert(ct.table.storage.serde == hiveSerde.get.serde)
-        assert(ct.table.storage.inputFormat == hiveSerde.get.inputFormat)
-        assert(ct.table.storage.outputFormat == hiveSerde.get.outputFormat)
-      } else {
-        assertUnsupported(query, Seq("row format delimited", "only compatible with 'textfile'", s))
-      }
-    }
-  }
-
   test("create external table - location must be specified") {
     assertUnsupported(
       sql = "CREATE EXTERNAL TABLE my_tab",
       containsThesePhrases = Seq("create external table", "location"))
     val query = "CREATE EXTERNAL TABLE my_tab LOCATION '/something/anything'"
-    val ct = parseAs[CreateTableCommand](query)
-    assert(ct.table.tableType == CatalogTableType.EXTERNAL)
-    assert(ct.table.storage.locationUri == Some("/something/anything"))
+    parser.parsePlan(query) match {
+      case ct: CreateTableCommand =>
+        assert(ct.table.tableType == CatalogTableType.EXTERNAL)
+        assert(ct.table.storage.locationUri == Some("/something/anything"))
+      case other =>
+        fail(s"Expected to parse ${classOf[CreateTableCommand].getClass.getName} from query," +
+          s"got ${other.getClass.getName}: $query")
+    }
   }
 
   test("create table - property values must be set") {
@@ -314,9 +252,14 @@ class DDLCommandSuite extends PlanTest {
 
   test("create table - location implies external") {
     val query = "CREATE TABLE my_tab LOCATION '/something/anything'"
-    val ct = parseAs[CreateTableCommand](query)
-    assert(ct.table.tableType == CatalogTableType.EXTERNAL)
-    assert(ct.table.storage.locationUri == Some("/something/anything"))
+    parser.parsePlan(query) match {
+      case ct: CreateTableCommand =>
+        assert(ct.table.tableType == CatalogTableType.EXTERNAL)
+        assert(ct.table.storage.locationUri == Some("/something/anything"))
+      case other =>
+        fail(s"Expected to parse ${classOf[CreateTableCommand].getClass.getName} from query," +
+            s"got ${other.getClass.getName}: $query")
+    }
   }
 
   test("create table using - with partitioned by") {
@@ -608,7 +551,8 @@ class DDLCommandSuite extends PlanTest {
 
   test("alter table: set file format (not allowed)") {
     assertUnsupported(
-      "ALTER TABLE table_name SET FILEFORMAT INPUTFORMAT 'test' OUTPUTFORMAT 'test'")
+      "ALTER TABLE table_name SET FILEFORMAT INPUTFORMAT 'test' " +
+        "OUTPUTFORMAT 'test' SERDE 'test'")
     assertUnsupported(
       "ALTER TABLE table_name PARTITION (dt='2008-08-08', country='us') " +
         "SET FILEFORMAT PARQUET")

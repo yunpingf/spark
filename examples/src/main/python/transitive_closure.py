@@ -46,7 +46,7 @@ if __name__ == "__main__":
         .appName("PythonTransitiveClosure")\
         .getOrCreate()
 
-    sc = spark.sparkContext
+    sc = spark._sc
 
     partitions = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     tc = sc.parallelize(generateGraph(), partitions).cache()

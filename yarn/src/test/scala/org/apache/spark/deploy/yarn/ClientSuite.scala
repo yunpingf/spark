@@ -144,16 +144,9 @@ class ClientSuite extends SparkFunSuite with Matchers with BeforeAndAfterAll
       .set(SPARK_JARS, Seq(SPARK))
       .set("spark.yarn.dist.jars", ADDED)
     val client = createClient(sparkConf, args = Array("--jar", USER))
-    doReturn(new Path("/")).when(client).copyFileToRemote(any(classOf[Path]),
-      any(classOf[Path]), anyShort(), anyBoolean(), any())
 
     val tempDir = Utils.createTempDir()
     try {
-      // Because we mocked "copyFileToRemote" above to avoid having to create fake local files,
-      // we need to create a fake config archive in the temp dir to avoid having
-      // prepareLocalResources throw an exception.
-      new FileOutputStream(new File(tempDir, LOCALIZED_CONF_ARCHIVE)).close()
-
       client.prepareLocalResources(new Path(tempDir.getAbsolutePath()), Nil)
       sparkConf.get(APP_JAR) should be (Some(USER))
 
@@ -391,7 +384,10 @@ class ClientSuite extends SparkFunSuite with Matchers with BeforeAndAfterAll
       conf: Configuration = new Configuration(),
       args: Array[String] = Array()): Client = {
     val clientArgs = new ClientArguments(args)
-    spy(new Client(clientArgs, conf, sparkConf))
+    val client = spy(new Client(clientArgs, conf, sparkConf))
+    doReturn(new Path("/")).when(client).copyFileToRemote(any(classOf[Path]),
+      any(classOf[Path]), anyShort(), anyBoolean(), any())
+    client
   }
 
   private def classpath(client: Client): Array[String] = {

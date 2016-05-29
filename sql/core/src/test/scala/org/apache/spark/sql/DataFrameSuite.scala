@@ -259,20 +259,12 @@ class DataFrameSuite extends QueryTest with SharedSQLContext {
   }
 
   test("repartition") {
-    intercept[IllegalArgumentException] {
-      testData.select('key).repartition(0)
-    }
-
     checkAnswer(
       testData.select('key).repartition(10).select('key),
       testData.select('key).collect().toSeq)
   }
 
   test("coalesce") {
-    intercept[IllegalArgumentException] {
-      testData.select('key).coalesce(0)
-    }
-
     assert(testData.select('key).coalesce(1).rdd.partitions.size === 1)
 
     checkAnswer(
@@ -515,7 +507,7 @@ class DataFrameSuite extends QueryTest with SharedSQLContext {
     )
   }
 
-  test("callUDF without Hive Support") {
+  test("callUDF in SQLContext") {
     val df = Seq(("id1", 1), ("id2", 4), ("id3", 5)).toDF("id", "value")
     df.sparkSession.udf.register("simpleUDF", (v: Int) => v * v)
     checkAnswer(

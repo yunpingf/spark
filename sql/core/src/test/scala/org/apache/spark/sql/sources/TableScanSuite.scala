@@ -106,7 +106,7 @@ case class AllDataTypesScan(
 }
 
 class TableScanSuite extends DataSourceTest with SharedSQLContext {
-  protected override lazy val sql = spark.sql _
+  protected override lazy val sql = caseInsensitiveContext.sql _
 
   private lazy val tableWithSchemaExpected = (1 to 10).map { i =>
     Row(
@@ -241,7 +241,7 @@ class TableScanSuite extends DataSourceTest with SharedSQLContext {
       Nil
     )
 
-    assert(expectedSchema == spark.table("tableWithSchema").schema)
+    assert(expectedSchema == caseInsensitiveContext.table("tableWithSchema").schema)
 
     checkAnswer(
       sql(
@@ -297,7 +297,7 @@ class TableScanSuite extends DataSourceTest with SharedSQLContext {
 
   test("Caching")  {
     // Cached Query Execution
-    spark.catalog.cacheTable("oneToTen")
+    caseInsensitiveContext.cacheTable("oneToTen")
     assertCached(sql("SELECT * FROM oneToTen"))
     checkAnswer(
       sql("SELECT * FROM oneToTen"),
@@ -325,7 +325,7 @@ class TableScanSuite extends DataSourceTest with SharedSQLContext {
       (2 to 10).map(i => Row(i, i - 1)).toSeq)
 
     // Verify uncaching
-    spark.catalog.uncacheTable("oneToTen")
+    caseInsensitiveContext.uncacheTable("oneToTen")
     assertCached(sql("SELECT * FROM oneToTen"), 0)
   }
 

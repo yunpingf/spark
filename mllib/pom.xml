@@ -102,11 +102,15 @@
     <dependency>
       <groupId>org.jpmml</groupId>
       <artifactId>pmml-model</artifactId>
-      <version>1.2.15</version>
+      <version>1.2.7</version>
       <exclusions>
         <exclusion>
-          <groupId>org.jpmml</groupId>
-          <artifactId>pmml-agent</artifactId>
+          <groupId>com.sun.xml.fastinfoset</groupId>
+          <artifactId>FastInfoset</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.sun.istack</groupId>
+          <artifactId>istack-commons-runtime</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

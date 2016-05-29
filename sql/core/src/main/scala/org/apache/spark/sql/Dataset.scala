@@ -35,7 +35,6 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst._
 import org.apache.spark.sql.catalyst.analysis._
-import org.apache.spark.sql.catalyst.catalog._
 import org.apache.spark.sql.catalyst.encoders._
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
@@ -45,7 +44,7 @@ import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.util.usePrettyExpression
 import org.apache.spark.sql.execution.{FileRelation, LogicalRDD, QueryExecution, SQLExecution}
-import org.apache.spark.sql.execution.command.{CreateViewCommand, ExplainCommand}
+import org.apache.spark.sql.execution.command.ExplainCommand
 import org.apache.spark.sql.execution.datasources.{CreateTableUsingAsSelect, LogicalRelation}
 import org.apache.spark.sql.execution.datasources.json.JacksonGenerator
 import org.apache.spark.sql.execution.python.EvaluatePython
@@ -59,7 +58,7 @@ private[sql] object Dataset {
   }
 
   def ofRows(sparkSession: SparkSession, logicalPlan: LogicalPlan): DataFrame = {
-    val qe = sparkSession.sessionState.executePlan(logicalPlan)
+    val qe = sparkSession.executePlan(logicalPlan)
     qe.assertAnalyzed()
     new Dataset[Row](sparkSession, logicalPlan, RowEncoder(qe.analyzed.schema))
   }
@@ -122,7 +121,7 @@ private[sql] object Dataset {
  *
  * A more concrete example in Scala:
  * {{{
- *   // To create Dataset[Row] using SparkSession
+ *   // To create Dataset[Row] using SQLContext
  *   val people = spark.read.parquet("...")
  *   val department = spark.read.parquet("...")
  *
@@ -134,7 +133,7 @@ private[sql] object Dataset {
  *
  * and in Java:
  * {{{
- *   // To create Dataset<Row> using SparkSession
+ *   // To create Dataset<Row> using SQLContext
  *   Dataset<Row> people = spark.read().parquet("...");
  *   Dataset<Row> department = spark.read().parquet("...");
  *
@@ -166,14 +165,14 @@ class Dataset[T] private[sql](
   // you wrap it with `withNewExecutionId` if this actions doesn't call other action.
 
   def this(sparkSession: SparkSession, logicalPlan: LogicalPlan, encoder: Encoder[T]) = {
-    this(sparkSession, sparkSession.sessionState.executePlan(logicalPlan), encoder)
+    this(sparkSession, sparkSession.executePlan(logicalPlan), encoder)
   }
 
   def this(sqlContext: SQLContext, logicalPlan: LogicalPlan, encoder: Encoder[T]) = {
     this(sqlContext.sparkSession, logicalPlan, encoder)
   }
 
-  @transient private[sql] val logicalPlan: LogicalPlan = {
+  @transient protected[sql] val logicalPlan: LogicalPlan = {
     def hasSideEffects(plan: LogicalPlan): Boolean = plan match {
       case _: Command |
            _: InsertIntoTable |
@@ -216,7 +215,7 @@ class Dataset[T] private[sql](
   // sqlContext must be val because a stable identifier is expected when you import implicits
   @transient lazy val sqlContext: SQLContext = sparkSession.sqlContext
 
-  private[sql] def resolve(colName: String): NamedExpression = {
+  protected[sql] def resolve(colName: String): NamedExpression = {
     queryExecution.analyzed.resolveQuoted(colName, sparkSession.sessionState.analyzer.resolver)
       .getOrElse {
         throw new AnalysisException(
@@ -224,7 +223,7 @@ class Dataset[T] private[sql](
       }
   }
 
-  private[sql] def numericColumns: Seq[Expression] = {
+  protected[sql] def numericColumns: Seq[Expression] = {
     schema.fields.filter(_.dataType.isInstanceOf[NumericType]).map { n =>
       queryExecution.analyzed.resolveQuoted(n.name, sparkSession.sessionState.analyzer.resolver).get
     }
@@ -238,13 +237,19 @@ class Dataset[T] private[sql](
    */
   private[sql] def showString(_numRows: Int, truncate: Boolean = true): String = {
     val numRows = _numRows.max(0)
-    val takeResult = toDF().take(numRows + 1)
+    val takeResult = take(numRows + 1)
     val hasMoreData = takeResult.length > numRows
     val data = takeResult.take(numRows)
 
     // For array values, replace Seq and Array with square brackets
     // For cells that are beyond 20 characters, replace it with the first 17 and "..."
-    val rows: Seq[Seq[String]] = schema.fieldNames.toSeq +: data.map { row =>
+    val rows: Seq[Seq[String]] = schema.fieldNames.toSeq +: data.map {
+      case r: Row => r
+      case tuple: Product => Row.fromTuple(tuple)
+      case definedByCtor: DefinedByConstructorParams =>
+        Row.fromSeq(ScalaReflection.getConstructorParameterValues(definedByCtor))
+      case o => Row(o)
+    }.map { row =>
       row.toSeq.map { cell =>
         val str = cell match {
           case null => "null"
@@ -412,7 +417,7 @@ class Dataset[T] private[sql](
    */
   def explain(extended: Boolean): Unit = {
     val explain = ExplainCommand(queryExecution.logical, extended = extended)
-    sparkSession.sessionState.executePlan(explain).executedPlan.executeCollect().foreach {
+    sparkSession.executePlan(explain).executedPlan.executeCollect().foreach {
       // scalastyle:off println
       r => println(r.getString(0))
       // scalastyle:on println
@@ -636,7 +641,7 @@ class Dataset[T] private[sql](
   def join(right: Dataset[_], usingColumns: Seq[String], joinType: String): DataFrame = {
     // Analyze the self join. The assumption is that the analyzer will disambiguate left vs right
     // by creating a new instance for one of the branch.
-    val joined = sparkSession.sessionState.executePlan(
+    val joined = sparkSession.executePlan(
       Join(logicalPlan, right.logicalPlan, joinType = JoinType(joinType), None))
       .analyzed.asInstanceOf[Join]
 
@@ -752,7 +757,7 @@ class Dataset[T] private[sql](
     val left = this.logicalPlan
     val right = other.logicalPlan
 
-    val joined = sparkSession.sessionState.executePlan(Join(left, right, joinType =
+    val joined = sparkSession.executePlan(Join(left, right, joinType =
       JoinType(joinType), Some(condition.expr)))
     val leftOutput = joined.analyzed.output.take(left.output.length)
     val rightOutput = joined.analyzed.output.takeRight(right.output.length)
@@ -1258,7 +1263,7 @@ class Dataset[T] private[sql](
   def groupByKey[K: Encoder](func: T => K): KeyValueGroupedDataset[K, T] = {
     val inputPlan = logicalPlan
     val withGroupingKey = AppendColumns(func, inputPlan)
-    val executed = sparkSession.sessionState.executePlan(withGroupingKey)
+    val executed = sparkSession.executePlan(withGroupingKey)
 
     new KeyValueGroupedDataset(
       encoderFor[K],
@@ -1551,33 +1556,30 @@ class Dataset[T] private[sql](
   }
 
   /**
+   * :: Experimental ::
    * (Scala-specific) Returns a new [[Dataset]] where each row has been expanded to zero or more
    * rows by the provided function. This is similar to a `LATERAL VIEW` in HiveQL. The columns of
    * the input row are implicitly joined with each row that is output by the function.
    *
-   * Given that this is deprecated, as an alternative, you can explode columns either using
-   * `functions.explode()` or `flatMap()`. The following example uses these alternatives to count
-   * the number of books that contain a given word:
+   * The following example uses this function to count the number of books which contain
+   * a given word:
    *
    * {{{
    *   case class Book(title: String, words: String)
    *   val ds: Dataset[Book]
    *
-   *   val allWords = ds.select('title, explode(split('words, " ")).as("word"))
+   *   case class Word(word: String)
+   *   val allWords = ds.explode('words) {
+   *     case Row(words: String) => words.split(" ").map(Word(_))
+   *   }
    *
    *   val bookCountPerWord = allWords.groupBy("word").agg(countDistinct("title"))
-   * }}}
-   *
-   * Using `flatMap()` this can similarly be exploded as:
-   *
-   * {{{
-   *   ds.flatMap(_.words.split(" "))
    * }}}
    *
    * @group untypedrel
    * @since 2.0.0
    */
-  @deprecated("use flatMap() or select() with functions.explode() instead", "2.0.0")
+  @Experimental
   def explode[A <: Product : TypeTag](input: Column*)(f: Row => TraversableOnce[A]): DataFrame = {
     val elementSchema = ScalaReflection.schemaFor[A].dataType.asInstanceOf[StructType]
 
@@ -1594,27 +1596,19 @@ class Dataset[T] private[sql](
   }
 
   /**
+   * :: Experimental ::
    * (Scala-specific) Returns a new [[Dataset]] where a single column has been expanded to zero
    * or more rows by the provided function. This is similar to a `LATERAL VIEW` in HiveQL. All
    * columns of the input row are implicitly joined with each value that is output by the function.
    *
-   * Given that this is deprecated, as an alternative, you can explode columns either using
-   * `functions.explode()`:
-   *
    * {{{
-   *   ds.select(explode(split('words, " ")).as("word"))
-   * }}}
-   *
-   * or `flatMap()`:
-   *
-   * {{{
-   *   ds.flatMap(_.words.split(" "))
+   *   ds.explode("words", "word") {words: String => words.split(" ")}
    * }}}
    *
    * @group untypedrel
    * @since 2.0.0
    */
-  @deprecated("use flatMap() or select() with functions.explode() instead", "2.0.0")
+  @Experimental
   def explode[A, B : TypeTag](inputColumn: String, outputColumn: String)(f: A => TraversableOnce[B])
     : DataFrame = {
     val dataType = ScalaReflection.schemaFor[B].dataType
@@ -2233,7 +2227,7 @@ class Dataset[T] private[sql](
    * @since 1.6.0
    */
   def persist(): this.type = {
-    sparkSession.sharedState.cacheManager.cacheQuery(this)
+    sparkSession.cacheManager.cacheQuery(this)
     this
   }
 
@@ -2255,7 +2249,7 @@ class Dataset[T] private[sql](
    * @since 1.6.0
    */
   def persist(newLevel: StorageLevel): this.type = {
-    sparkSession.sharedState.cacheManager.cacheQuery(this, None, newLevel)
+    sparkSession.cacheManager.cacheQuery(this, None, newLevel)
     this
   }
 
@@ -2268,7 +2262,7 @@ class Dataset[T] private[sql](
    * @since 1.6.0
    */
   def unpersist(blocking: Boolean): this.type = {
-    sparkSession.sharedState.cacheManager.tryUncacheQuery(this, blocking)
+    sparkSession.cacheManager.tryUncacheQuery(this, blocking)
     this
   }
 
@@ -2289,7 +2283,7 @@ class Dataset[T] private[sql](
   lazy val rdd: RDD[T] = {
     val objectType = unresolvedTEncoder.deserializer.dataType
     val deserialized = CatalystSerde.deserialize[T](logicalPlan)
-    sparkSession.sessionState.executePlan(deserialized).toRdd.mapPartitions { rows =>
+    sparkSession.executePlan(deserialized).toRdd.mapPartitions { rows =>
       rows.map(_.get(0, objectType).asInstanceOf[T])
     }
   }
@@ -2330,14 +2324,8 @@ class Dataset[T] private[sql](
    * @since 2.0.0
    */
   @throws[AnalysisException]
-  def createTempView(viewName: String): Unit = withPlan {
-    val tableDesc = CatalogTable(
-      identifier = sparkSession.sessionState.sqlParser.parseTableIdentifier(viewName),
-      tableType = CatalogTableType.VIEW,
-      schema = Seq.empty[CatalogColumn],
-      storage = CatalogStorageFormat.EmptyStorageFormat)
-    CreateViewCommand(tableDesc, logicalPlan, allowExisting = false, replace = false,
-      isTemporary = true, sql = "")
+  def createTempView(viewName: String): Unit = {
+    sparkSession.createTempView(viewName, toDF(), replaceIfExists = false)
   }
 
   /**
@@ -2347,14 +2335,8 @@ class Dataset[T] private[sql](
    * @group basic
    * @since 2.0.0
    */
-  def createOrReplaceTempView(viewName: String): Unit = withPlan {
-    val tableDesc = CatalogTable(
-      identifier = sparkSession.sessionState.sqlParser.parseTableIdentifier(viewName),
-      tableType = CatalogTableType.VIEW,
-      schema = Seq.empty[CatalogColumn],
-      storage = CatalogStorageFormat.EmptyStorageFormat)
-    CreateViewCommand(tableDesc, logicalPlan, allowExisting = false, replace = true,
-      isTemporary = true, sql = "")
+  def createOrReplaceTempView(viewName: String): Unit = {
+    sparkSession.createTempView(viewName, toDF(), replaceIfExists = true)
   }
 
   /**
@@ -2424,19 +2406,19 @@ class Dataset[T] private[sql](
   /**
    * Converts a JavaRDD to a PythonRDD.
    */
-  private[sql] def javaToPython: JavaRDD[Array[Byte]] = {
+  protected[sql] def javaToPython: JavaRDD[Array[Byte]] = {
     val structType = schema  // capture it for closure
     val rdd = queryExecution.toRdd.map(EvaluatePython.toJava(_, structType))
     EvaluatePython.javaToPython(rdd)
   }
 
-  private[sql] def collectToPython(): Int = {
+  protected[sql] def collectToPython(): Int = {
     withNewExecutionId {
       PythonRDD.collectAndServe(javaToPython.rdd)
     }
   }
 
-  private[sql] def toPythonIterator(): Int = {
+  protected[sql] def toPythonIterator(): Int = {
     withNewExecutionId {
       PythonRDD.toLocalIteratorAndServe(javaToPython.rdd)
     }
