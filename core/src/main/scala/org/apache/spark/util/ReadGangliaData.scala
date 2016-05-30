@@ -15,12 +15,14 @@
  * limitations under the License.
  */
 package org.apache.spark.util
+import org.apache.spark.executor.ExecutorStatsMetrics
 
 import java.net.Socket
 
 import scala.collection.mutable.HashMap
 import scala.io.Source
 import scala.xml._
+
 
 object ReadGangliaData {
   type MetricInfo = (String, (String, String, String))
@@ -42,6 +44,7 @@ object ReadGangliaData {
     val attrs = HashMap[String, List[MetricInfo]]()
     def filterAttribute(node: Node, att: String, value: String) =
       (node \ ("@" + att)).text == value
+    val esm = ExecutorStatsMetrics.empty
 
     for (m <- metrics) {
       val extra_elems = m \ "EXTRA_DATA" \ "EXTRA_ELEMENT"
