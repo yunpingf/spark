@@ -1852,6 +1852,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       Option(getLocalProperty(CallSite.LONG_FORM)).getOrElse(callSite.longForm)
     )
   }
+  // Add by yunping
   private def buildChildDependency[T](rdd: RDD[T]): Unit = {
     val rdds = rdd.dependencies.map(dep => dep.rdd);
     for (r <- rdds) {

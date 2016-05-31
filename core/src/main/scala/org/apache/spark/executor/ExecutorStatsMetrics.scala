@@ -21,39 +21,39 @@ package org.apache.spark.executor
 class ExecutorStatsMetrics private[spark]() extends Serializable {
   // CPU
   // Percentage of CPU utilization that occurred while executing at the system level
-  private var _cpuPercentage = new Float
+  private var _cpuSystem: Float = _
   // It is the number of threads (kernel level) that are runnable and queued
   // while waiting for CPU resources, averaged over one minute.
-  private var _loadOne = new Float
+  private var _loadOne: Float = _
   // Five minute load average
-  private var _loadFive = new Float
+  private var _loadFive: Float = _
   // Fifteen minute load average
-  private var _loadFifteen = new Float
+  private var _loadFifteen: Float = _
   // Percentage of CPU cycles spent idle since last boot (Linux)
-  private var _cpuAIdle = new Float
+  private var _cpuAIdle: Float = _
   // Percentage of CPU cycles spent waiting for I/O (Solaris)
-  private var _cpuWIO = new Float
+  private var _cpuWIO: Float = _
   // Percentage of CPU cycles spent in user mode
-  private var _cpuUser = new Float
+  private var _cpuUser: Float = _
   // Percentage of time that the CPU or CPUs were idle and
   // the system did not have an outstanding disk I/O request
-  private var _cpuIdle = new Float
+  private var _cpuIdle: Float = _
 
   // Memory
   // Amount of memory allocated to system buffers (Linux)
-  private var _memBuffers = new Float
+  private var _memBuffers: Float = _
   // Amount of memory allocated to cached data (Linux)
-  private var _memCached = new Float
+  private var _memCached: Float = _
   // Amount of available memory
-  private var _memFree = new Float
+  private var _memFree: Float = _
   // Amount of free swap space
-  private var _swapFree = new Float
+  private var _swapFree: Float = _
   // Amount of total swap space
-  private var _swapTotal = new Float
+  private var _swapTotal: Float = _
 
   // Setters
   // CPU
-  private[spark] def setCpuPercentage(v: Float): Unit = _cpuPercentage = v
+  private[spark] def setCpuSystem(v: Float): Unit = _cpuSystem = v
   private[spark] def setLoadOne(v: Float): Unit = _loadOne = v
   private[spark] def setLoadFive(v: Float): Unit = _loadFive = v
   private[spark] def setLoadFifteen(v: Float): Unit = _loadFifteen = v
@@ -71,7 +71,7 @@ class ExecutorStatsMetrics private[spark]() extends Serializable {
 
   // Getters
   // CPU
-  def cpuPercentage: Float = _cpuPercentage
+  def cpuSystem: Float = _cpuSystem
   def loadOne: Float = _loadOne
   def loadFive: Float = _loadFive
   def loadFifteen: Float = _loadFifteen

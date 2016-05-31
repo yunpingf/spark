@@ -15,17 +15,30 @@
  * limitations under the License.
  */
 package org.apache.spark.util
-import org.apache.spark.executor.ExecutorStatsMetrics
 
 import java.net.Socket
 
-import scala.collection.mutable.HashMap
+import org.apache.spark.executor.ExecutorStatsMetrics
+
 import scala.io.Source
 import scala.xml._
 
 
 object ReadGangliaData {
   type MetricInfo = (String, (String, String, String))
+  val CPU_SYSTEM = "cpu_system"
+  val LOAD_ONE = "load_one"
+  val LOAD_FIVE = "load_five"
+  val LOAD_FIFTEEN = "load_fifteen"
+  val CPU_A_IDLE = "cpu_aidle"
+  val CPU_WIO = "cpu_wio"
+  val CPU_USER = "cpu_user"
+  val CPU_IDLE = "cpu_idle"
+  val MEM_BUFFERS = "mem_buffers"
+  val MEM_CACHED = "mem_cached"
+  val MEM_FREE = "mem_free"
+  val SWAP_FREE = "swap_free"
+  val SWAP_TOTAL = "swap_total"
 
   private def readFromSocket(ip: String): String = {
     val connection = new Socket(ip, 8649)
@@ -33,7 +46,7 @@ object ReadGangliaData {
     Source.fromInputStream(inStream).mkString
   }
 
-  def readXmlMetrics(ip: String): HashMap[String, List[MetricInfo]] = {
+  def readXmlMetrics(ip: String): ExecutorStatsMetrics = {
     val xml_data = XML.loadString(readFromSocket(ip))
     val ganglia_xml = xml_data \\ "GANGLIA_XML"
     val host = ganglia_xml \ "CLUSTER" \ "HOST"
@@ -41,27 +54,30 @@ object ReadGangliaData {
     val host_ip = (host \ "@IP").text
     val metrics = host \ "METRIC"
 
-    val attrs = HashMap[String, List[MetricInfo]]()
     def filterAttribute(node: Node, att: String, value: String) =
       (node \ ("@" + att)).text == value
     val esm = ExecutorStatsMetrics.empty
 
     for (m <- metrics) {
-      val extra_elems = m \ "EXTRA_DATA" \ "EXTRA_ELEMENT"
-      val group = (extra_elems.filter(n =>
-        filterAttribute(n, "NAME", "GROUP")).head \ "@VAL").text
-
       val metric_name = (m \ "@NAME").text
       val metric_value = (m \ "@VAL").text
-      val metric_type = (m \ "@TYPE").text
-      val metric_units = (m \ "@UNITS").text
-
-      val minfo = (metric_name ->
-        (metric_value, metric_type, metric_units))
-      attrs.put(group, minfo :: attrs.getOrElse(group, Nil))
+      metric_name match {
+        case CPU_SYSTEM => esm.setCpuSystem(metric_value.toFloat)
+        case LOAD_ONE => esm.setLoadOne(metric_value.toFloat)
+        case LOAD_FIVE => esm.setLoadFive(metric_value.toFloat)
+        case LOAD_FIFTEEN => esm.setLoadFifteen(metric_value.toFloat)
+        case CPU_A_IDLE => esm.setCpuAIdle(metric_value.toFloat)
+        case CPU_WIO => esm.setCpuWIO(metric_value.toFloat)
+        case CPU_USER => esm.setCpuUser(metric_value.toFloat)
+        case CPU_IDLE => esm.setCpuIdle(metric_value.toFloat)
+        case MEM_BUFFERS => esm.setMemBuffers(metric_value.toFloat)
+        case MEM_CACHED => esm.setMemCached(metric_value.toFloat)
+        case MEM_FREE => esm.setMemFree(metric_value.toFloat)
+        case SWAP_FREE => esm.setSwapFree(metric_value.toFloat)
+        case SWAP_TOTAL => esm.setSwapTotal(metric_value.toFloat)
+      }
     }
-
-    attrs
+    esm
   }
 
   def main(args: Array[String]): Unit = {
