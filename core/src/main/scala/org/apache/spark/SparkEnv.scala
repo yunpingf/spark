@@ -63,6 +63,8 @@ class SparkEnv (
     val shuffleManager: ShuffleManager,
     val broadcastManager: BroadcastManager,
     val blockManager: BlockManager,
+    val executorStatsCollector: ExecutorStatsCollector,
+    val executorStatsCollectorMaster: ExecutorStatsCollectorMaster,
     val securityManager: SecurityManager,
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
@@ -138,8 +140,6 @@ object SparkEnv extends Logging {
 
   private[spark] val driverSystemName = "sparkDriver"
   private[spark] val executorSystemName = "sparkExecutor"
-  private[spark] var executorStatsCollector: ExecutorStatsCollector = null
-  private[spark] var executorStatsCollectorMaster: ExecutorStatsCollectorMaster = null
 
   def set(e: SparkEnv) {
     env = e
@@ -325,6 +325,8 @@ object SparkEnv extends Logging {
       blockTransferService, securityManager, numUsableCores)
 
     // Add by yunpingf
+    var executorStatsCollector: ExecutorStatsCollector = null
+    var executorStatsCollectorMaster: ExecutorStatsCollectorMaster = null
     if (isDriver) {
       // If on driver, executorStatsCollector is null
       executorStatsCollectorMaster = new ExecutorStatsCollectorMaster(
@@ -370,6 +372,8 @@ object SparkEnv extends Logging {
       shuffleManager,
       broadcastManager,
       blockManager,
+      executorStatsCollector,
+      executorStatsCollectorMaster,
       securityManager,
       metricsSystem,
       memoryManager,
