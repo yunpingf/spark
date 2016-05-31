@@ -20,6 +20,8 @@ package org.apache.spark
 import java.io.File
 import java.net.Socket
 
+import org.apache.spark.executor.{ExecutorStatsMasterEndpoint, ExecutorStatsCollectorMaster, ExecutorStatsCollector}
+
 import scala.collection.mutable
 import scala.util.Properties
 
@@ -66,7 +68,6 @@ class SparkEnv (
     val memoryManager: MemoryManager,
     val outputCommitCoordinator: OutputCommitCoordinator,
     val conf: SparkConf) extends Logging {
-
   private[spark] var isStopped = false
   private val pythonWorkers = mutable.HashMap[(String, Map[String, String]), PythonWorkerFactory]()
 
@@ -137,6 +138,8 @@ object SparkEnv extends Logging {
 
   private[spark] val driverSystemName = "sparkDriver"
   private[spark] val executorSystemName = "sparkExecutor"
+  private[spark] var executorStatsCollector: ExecutorStatsCollector = null
+  private[spark] var executorStatsCollectorMaster: ExecutorStatsCollectorMaster = null
 
   def set(e: SparkEnv) {
     env = e
@@ -320,6 +323,20 @@ object SparkEnv extends Logging {
     val blockManager = new BlockManager(executorId, rpcEnv, blockManagerMaster,
       serializerManager, conf, memoryManager, mapOutputTracker, shuffleManager,
       blockTransferService, securityManager, numUsableCores)
+
+    // Add by yunpingf
+    if (isDriver) {
+      // If on driver, executorStatsCollector is null
+      executorStatsCollectorMaster = new ExecutorStatsCollectorMaster(
+        registerOrLookupEndpoint(
+          ExecutorStatsCollectorMaster.DRIVER_ENDPOINT_NAME,
+          new ExecutorStatsMasterEndpoint(rpcEnv, isLocal, conf, listenerBus)),
+        conf, isDriver)
+    } else {
+      executorStatsCollector = new ExecutorStatsCollector(executorId, rpcEnv,
+        executorStatsCollectorMaster, serializerManager, conf, memoryManager, mapOutputTracker,
+        shuffleManager, blockTransferService, securityManager, numUsableCores)
+    }
 
     val metricsSystem = if (isDriver) {
       // Don't start metrics system right now for Driver.

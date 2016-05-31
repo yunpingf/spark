@@ -25,6 +25,7 @@ import org.apache.spark.memory.MemoryManager
 import org.apache.spark.rpc.RpcEnv
 import org.apache.spark.serializer.SerializerManager
 import org.apache.spark.storage.{BlockManagerSlaveEndpoint, BlockManagerMaster}
+import org.apache.spark.SparkContext
 
 class ExecutorStatsCollector(
   executorId: String,
@@ -42,6 +43,10 @@ class ExecutorStatsCollector(
   private val slaveEndpoint = rpcEnv.setupEndpoint(
     "ExecutorStatsEndpoint" + ExecutorStatsCollector.ID_GENERATOR.next,
     new ExecutorStatsSlaveEndpoint(rpcEnv, this, mapOutputTracker))
+  private def hello() {
+    val sc = SparkContext.getOrCreate()
+
+  }
 }
 
 private[spark] object ExecutorStatsCollector {

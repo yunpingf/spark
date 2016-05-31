@@ -28,3 +28,7 @@ class ExecutorStatsCollectorMaster(
   val timeout = RpcUtils.askRpcTimeout(conf)
 
 }
+
+object ExecutorStatsCollectorMaster {
+  val DRIVER_ENDPOINT_NAME = "ExecutorStatsCollectorMaster"
+}
