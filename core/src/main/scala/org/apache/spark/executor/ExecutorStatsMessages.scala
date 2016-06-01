@@ -16,6 +16,8 @@
  */
 package org.apache.spark.executor
 
+import org.apache.spark.rpc.RpcEndpointRef
+
 private[spark] object ExecutorStatsMessages {
   sealed trait ToExecutorStatsSlave
 
@@ -24,4 +26,7 @@ private[spark] object ExecutorStatsMessages {
   sealed trait ToExecutorStatsMaster
 
   case class HelloFromSlave(message: String) extends ToExecutorStatsMaster
+  case class RegisterExecutorStatsCollector(
+    executorStatsCollectorId: ExecutorStatsCollectorId,
+    sender: RpcEndpointRef) extends ToExecutorStatsMaster
 }

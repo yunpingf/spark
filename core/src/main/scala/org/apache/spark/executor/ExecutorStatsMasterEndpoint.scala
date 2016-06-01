@@ -17,12 +17,12 @@
 package org.apache.spark.executor
 
 import org.apache.spark.SparkConf
-import org.apache.spark.executor.ExecutorStatsMessages.HelloFromSlave
+import org.apache.spark.executor.ExecutorStatsMessages.{RegisterExecutorStatsCollector, HelloFromSlave}
 import org.apache.spark.internal.Logging
-import org.apache.spark.rpc.{RpcCallContext, ThreadSafeRpcEndpoint, RpcEnv}
-import org.apache.spark.scheduler.LiveListenerBus
+import org.apache.spark.rpc.{RpcEndpointRef, RpcCallContext, ThreadSafeRpcEndpoint, RpcEnv}
+import org.apache.spark.scheduler._
 import org.apache.spark.storage.BlockManagerId
-import org.apache.spark.util.ThreadUtils
+import org.apache.spark.util.{Utils, ThreadUtils}
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
@@ -33,12 +33,44 @@ class ExecutorStatsMasterEndpoint(
   conf: SparkConf,
   listenerBus: LiveListenerBus
 ) extends ThreadSafeRpcEndpoint with Logging {
+  private val executorStatsCollectorInfo =
+    new mutable.HashMap[ExecutorStatsCollectorId, ExecutorStatsCollectorInfo]
+
   private val executorStatsCollectorIdByExecutor =
     new mutable.HashMap[String, ExecutorStatsCollectorId]
+
   private val askThreadPool =
     ThreadUtils.newDaemonCachedThreadPool("executor-stats-master-ask-thread-pool")
+
   private implicit val askExecutionContext = ExecutionContext.fromExecutorService(askThreadPool)
+
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] = {
     case HelloFromSlave(message: String) => context.reply(true)
+    case RegisterExecutorStatsCollector(executorStatsCollectorId, slaveEndpoint) =>
+      register(executorStatsCollectorId, slaveEndpoint)
+      context.reply(true)
+  }
+
+  private def register(id: ExecutorStatsCollectorId, slaveEndpoint: RpcEndpointRef) = {
+    val time = System.currentTimeMillis()
+    if (!executorStatsCollectorInfo.contains(id)) {
+      logInfo("Registering block manager %s with %s".format(
+        id.hostPort, id))
+
+      executorStatsCollectorIdByExecutor(id.executorId) = id
+      executorStatsCollectorInfo(id) = new ExecutorStatsCollectorInfo(
+        id, System.currentTimeMillis(), slaveEndpoint)
+    }
+    listenerBus.post(SparkListenerExecutorStatsCollectorAdded(time, id))
+  }
+}
+
+private[spark] class ExecutorStatsCollectorInfo(
+  val executorStatsCollectorId: ExecutorStatsCollectorId,
+  timeMs: Long,
+  val slaveEndpoint: RpcEndpointRef) extends Logging {
+  private var _lastSeenMs: Long = timeMs
+  def updateLastSeenMs() {
+    _lastSeenMs = System.currentTimeMillis()
   }
 }

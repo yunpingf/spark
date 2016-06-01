@@ -36,13 +36,22 @@ class ExecutorStatsCollector(
   memoryManager: MemoryManager,
   mapOutputTracker: MapOutputTracker,
   shuffleManager: ShuffleManager,
-  val blockTransferService: BlockTransferService,
+  hostname: String,
+  port: Int,
   securityManager: SecurityManager,
   numUsableCores: Int) extends Logging {
-
   private val slaveEndpoint = rpcEnv.setupEndpoint(
     "ExecutorStatsEndpoint" + ExecutorStatsCollector.ID_GENERATOR.next,
     new ExecutorStatsSlaveEndpoint(rpcEnv, this, mapOutputTracker))
+
+  var executorStatsCollectorId: ExecutorStatsCollectorId = _
+
+  def initialize(appId: String): Unit = {
+    executorStatsCollectorId = ExecutorStatsCollectorId(
+      executorId, hostname, port)
+    master.registerExecutorStatsCollector(executorStatsCollectorId, slaveEndpoint)
+  }
+
   private def hello() {
     val sc = SparkContext.getOrCreate()
 

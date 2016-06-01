@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 
 import org.apache.spark.{SparkConf, TaskEndReason}
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.executor.TaskMetrics
+import org.apache.spark.executor.{ExecutorStatsCollectorId, TaskMetrics}
 import org.apache.spark.scheduler.cluster.ExecutorInfo
 import org.apache.spark.storage.{BlockManagerId, BlockUpdatedInfo}
 import org.apache.spark.ui.SparkUI
@@ -93,6 +93,14 @@ case class SparkListenerBlockManagerAdded(time: Long, blockManagerId: BlockManag
 @DeveloperApi
 case class SparkListenerBlockManagerRemoved(time: Long, blockManagerId: BlockManagerId)
   extends SparkListenerEvent
+
+@DeveloperApi
+case class SparkListenerExecutorStatsCollectorAdded(
+  time: Long, executorStatsCollectorId: ExecutorStatsCollectorId) extends SparkListenerEvent
+
+@DeveloperApi
+case class SparkListenerExecutorStatsCollectorRemoved(
+  time: Long, executorStatsCollectorId: ExecutorStatsCollectorId) extends SparkListenerEvent
 
 @DeveloperApi
 case class SparkListenerUnpersistRDD(rddId: Int) extends SparkListenerEvent

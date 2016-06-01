@@ -64,7 +64,6 @@ class SparkEnv (
     val broadcastManager: BroadcastManager,
     val blockManager: BlockManager,
     val executorStatsCollector: ExecutorStatsCollector,
-    val executorStatsCollectorMaster: ExecutorStatsCollectorMaster,
     val securityManager: SecurityManager,
     val metricsSystem: MetricsSystem,
     val memoryManager: MemoryManager,
@@ -325,20 +324,16 @@ object SparkEnv extends Logging {
       blockTransferService, securityManager, numUsableCores)
 
     // Add by yunpingf
-    var executorStatsCollector: ExecutorStatsCollector = null
-    var executorStatsCollectorMaster: ExecutorStatsCollectorMaster = null
-    if (isDriver) {
-      // If on driver, executorStatsCollector is null
-      executorStatsCollectorMaster = new ExecutorStatsCollectorMaster(
+    val executorStatsCollectorMaster = new ExecutorStatsCollectorMaster(
         registerOrLookupEndpoint(
           ExecutorStatsCollectorMaster.DRIVER_ENDPOINT_NAME,
           new ExecutorStatsMasterEndpoint(rpcEnv, isLocal, conf, listenerBus)),
         conf, isDriver)
-    } else {
-      executorStatsCollector = new ExecutorStatsCollector(executorId, rpcEnv,
+
+    val executorStatsCollector = new ExecutorStatsCollector(executorId, rpcEnv,
         executorStatsCollectorMaster, serializerManager, conf, memoryManager, mapOutputTracker,
-        shuffleManager, blockTransferService, securityManager, numUsableCores)
-    }
+        shuffleManager, hostname, port, securityManager, numUsableCores)
+
 
     val metricsSystem = if (isDriver) {
       // Don't start metrics system right now for Driver.
@@ -373,7 +368,6 @@ object SparkEnv extends Logging {
       broadcastManager,
       blockManager,
       executorStatsCollector,
-      executorStatsCollectorMaster,
       securityManager,
       metricsSystem,
       memoryManager,

@@ -16,7 +16,8 @@
  */
 package org.apache.spark.executor
 
-import org.apache.spark.SparkConf
+import org.apache.spark.executor.ExecutorStatsMessages.RegisterExecutorStatsCollector
+import org.apache.spark.{SparkException, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.util.RpcUtils
@@ -27,6 +28,18 @@ class ExecutorStatsCollectorMaster(
   isDriver: Boolean) extends Logging {
   val timeout = RpcUtils.askRpcTimeout(conf)
 
+  def registerExecutorStatsCollector
+  (executorStatsCollectorId: ExecutorStatsCollectorId,
+   slaveEndpoint: RpcEndpointRef) : Unit = {
+    logInfo(s"Registering ExecutorStatsCollector $executorStatsCollectorId")
+    tell(RegisterExecutorStatsCollector(executorStatsCollectorId, slaveEndpoint))
+    logInfo(s"Registered ExecutorStatsCollector $executorStatsCollectorId")
+  }
+  private def tell(message: Any) {
+    if (!driverEndpoint.askWithRetry[Boolean](message)) {
+      throw new SparkException("ExecutorStatsCollectorMaster returned false, expected true.")
+    }
+  }
 }
 
 object ExecutorStatsCollectorMaster {
