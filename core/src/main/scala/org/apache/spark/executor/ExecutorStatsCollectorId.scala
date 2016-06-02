@@ -32,6 +32,7 @@ class ExecutorStatsCollectorId private(
   def executorId: String = executorId_
 
   if (host_ != null) {
+    println(host_ + " " + port_)
     Utils.checkHost(host_, "Expected hostname")
     assert (port_ > 0)
   }

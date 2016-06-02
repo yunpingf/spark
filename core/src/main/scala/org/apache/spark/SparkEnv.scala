@@ -164,6 +164,7 @@ object SparkEnv extends Logging {
     assert(conf.contains("spark.driver.port"), "spark.driver.port is not set on the driver!")
     val hostname = conf.get("spark.driver.host")
     val port = conf.get("spark.driver.port").toInt
+    println("Driver: "+hostname+" "+port)
     create(
       conf,
       SparkContext.DRIVER_IDENTIFIER,

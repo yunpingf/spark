@@ -507,8 +507,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     _conf.set("spark.app.id", _applicationId)
     _ui.foreach(_.setAppId(_applicationId))
     _env.blockManager.initialize(_applicationId)
-    _env.executorStatsCollector.initialize(_applicationId)
-    //_env.executorStatsCollector
+    // _env.executorStatsCollector.initialize(_applicationId)
 
     // The metrics system for Driver need to be set spark.app.id to app ID.
     // So it should start after we get app ID from the task scheduler and set spark.app.id.
@@ -1854,7 +1853,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       Option(getLocalProperty(CallSite.LONG_FORM)).getOrElse(callSite.longForm)
     )
   }
-  // Add by yunping
+  // Add by yunpingf
   private def buildChildDependency[T](rdd: RDD[T]): Unit = {
     val rdds = rdd.dependencies.map(dep => dep.rdd);
     for (r <- rdds) {
@@ -1880,6 +1879,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
+    // Add by yunpingf
     buildChildDependency(rdd);
     dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
