@@ -32,6 +32,8 @@ private[spark] trait SparkListenerBus extends ListenerBus[SparkListener, SparkLi
         listener.onStageCompleted(stageCompleted)
       case jobStart: SparkListenerJobStart =>
         listener.onJobStart(jobStart)
+      case buildRddDependency: SparkListenerBuildRddDependency =>
+        listener.onBuildRddDependency(buildRddDependency)
       case jobEnd: SparkListenerJobEnd =>
         listener.onJobEnd(jobEnd)
       case taskStart: SparkListenerTaskStart =>

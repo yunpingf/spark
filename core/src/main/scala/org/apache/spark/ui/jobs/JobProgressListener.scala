@@ -396,7 +396,7 @@ class JobProgressListener(conf: SparkConf) extends SparkListener with Logging {
       taskData.taskInfo = info
       taskData.taskMetrics = metrics
       taskData.errorMessage = errorMessage
-
+      logWarning("Task ID: " + info.taskId + " " + taskData.taskMetrics.get.toString())
       for (
         activeJobsDependentOnStage <- stageIdToActiveJobIds.get(taskEnd.stageId);
         jobId <- activeJobsDependentOnStage;

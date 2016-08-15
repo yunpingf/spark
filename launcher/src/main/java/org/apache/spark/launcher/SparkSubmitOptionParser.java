@@ -39,6 +39,9 @@ class SparkSubmitOptionParser {
   protected final String CLASS = "--class";
   protected final String CONF = "--conf";
   protected final String DEPLOY_MODE = "--deploy-mode";
+  protected final String RUN_MODE = "--run-mode";
+  protected final String SAMPLING_RATE = "--sampling-rate";
+  protected final String STORAGE_LEVEL = "--storage-level";
   protected final String DRIVER_CLASS_PATH = "--driver-class-path";
   protected final String DRIVER_CORES = "--driver-cores";
   protected final String DRIVER_JAVA_OPTIONS =  "--driver-java-options";
@@ -115,6 +118,9 @@ class SparkSubmitOptionParser {
     { REPOSITORIES },
     { STATUS },
     { TOTAL_EXECUTOR_CORES },
+    { RUN_MODE },
+    { SAMPLING_RATE },
+    { STORAGE_LEVEL }
   };
 
   /**

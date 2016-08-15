@@ -17,6 +17,8 @@
 
 package org.apache.spark.rdd
 
+import org.apache.spark.util.Utils
+
 import scala.reflect.ClassTag
 
 import org.apache.spark._
@@ -31,7 +33,8 @@ private[spark] class ShuffledRDDPartition(val idx: Int) extends Partition {
 /**
  * :: DeveloperApi ::
  * The resulting RDD from a shuffle (e.g. repartitioning of data).
- * @param prev the parent RDD.
+  *
+  * @param prev the parent RDD.
  * @param part the partitioner used to partition the RDD
  * @tparam K the key class.
  * @tparam V the value class.
@@ -93,10 +96,15 @@ class ShuffledRDD[K: ClassTag, V: ClassTag, C: ClassTag](
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[(K, C)] = {
-    val dep = dependencies.head.asInstanceOf[ShuffleDependency[K, V, C]]
-    SparkEnv.get.shuffleManager.getReader(dep.shuffleHandle, split.index, split.index + 1, context)
-      .read()
-      .asInstanceOf[Iterator[(K, C)]]
+    // add time computation by yunpingf
+    val fx = () => {
+      val dep = dependencies.head.asInstanceOf[ShuffleDependency[K, V, C]]
+      SparkEnv.get.shuffleManager.getReader(dep.shuffleHandle,
+        split.index, split.index + 1, context)
+        .read()
+        .asInstanceOf[Iterator[(K, C)]]
+    }
+    Utils.computeRddTime[(K, C)](fx, context, this.id, split.index)
   }
 
   override def clearDependencies() {

@@ -154,7 +154,7 @@ abstract class RDD[T: ClassTag](
    * @param newLevel the target storage level
    * @param allowOverride whether to override any existing level with the new one
    */
-  private def persist(newLevel: StorageLevel, allowOverride: Boolean): this.type = {
+  def persist(newLevel: StorageLevel, allowOverride: Boolean): this.type = {
     // TODO: Handle changes of StorageLevel
     if (storageLevel != StorageLevel.NONE && newLevel != storageLevel && !allowOverride) {
       throw new UnsupportedOperationException(
@@ -303,6 +303,7 @@ abstract class RDD[T: ClassTag](
     if (isCheckpointedAndMaterialized) {
       firstParent[T].iterator(split, context)
     } else {
+      logWarning(this.toString + " " + split.index + " " + split.toString)
       compute(split, context)
     }
   }
@@ -1172,6 +1173,7 @@ abstract class RDD[T: ClassTag](
       result
     }
     val evaluator = new CountEvaluator(partitions.length, confidence)
+
     sc.runApproximateJob(this, countElements, evaluator, timeout)
   }
 

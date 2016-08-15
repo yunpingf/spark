@@ -64,7 +64,9 @@ private[spark] object BlockManagerMessages {
       var storageLevel: StorageLevel,
       var memSize: Long,
       var diskSize: Long,
-      var externalBlockStoreSize: Long)
+      var externalBlockStoreSize: Long,
+      var avgSerializeTime: Long = 0L,
+      var avgDeserializeTime: Long = 0L)
     extends ToBlockManagerMaster
     with Externalizable {
 
@@ -77,6 +79,8 @@ private[spark] object BlockManagerMessages {
       out.writeLong(memSize)
       out.writeLong(diskSize)
       out.writeLong(externalBlockStoreSize)
+      out.writeLong(avgSerializeTime)
+      out.writeLong(avgDeserializeTime)
     }
 
     override def readExternal(in: ObjectInput): Unit = Utils.tryOrIOException {
@@ -86,6 +90,8 @@ private[spark] object BlockManagerMessages {
       memSize = in.readLong()
       diskSize = in.readLong()
       externalBlockStoreSize = in.readLong()
+      avgSerializeTime = in.readLong()
+      avgDeserializeTime = in.readLong()
     }
   }
 
@@ -114,4 +120,6 @@ private[spark] object BlockManagerMessages {
   case class BlockManagerHeartbeat(blockManagerId: BlockManagerId) extends ToBlockManagerMaster
 
   case class HasCachedBlocks(executorId: String) extends ToBlockManagerMaster
+
+  case class HelloMaster(mesg: String) extends  ToBlockManagerMaster
 }

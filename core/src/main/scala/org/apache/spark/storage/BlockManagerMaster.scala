@@ -55,10 +55,12 @@ class BlockManagerMaster(
       storageLevel: StorageLevel,
       memSize: Long,
       diskSize: Long,
-      externalBlockStoreSize: Long): Boolean = {
+      externalBlockStoreSize: Long,
+      avgSerializeTime: Long,
+      avgDeserializeTime: Long): Boolean = {
     val res = driverEndpoint.askWithRetry[Boolean](
       UpdateBlockInfo(blockManagerId, blockId, storageLevel,
-        memSize, diskSize, externalBlockStoreSize))
+        memSize, diskSize, externalBlockStoreSize, avgSerializeTime, avgDeserializeTime))
     logDebug(s"Updated info of block $blockId")
     res
   }

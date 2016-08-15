@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory
 import java.net.URL
 import java.nio.ByteBuffer
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
+import java.util.Calendar
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
@@ -134,9 +135,11 @@ private[spark] class Executor(
       taskId: Long,
       attemptNumber: Int,
       taskName: String,
-      serializedTask: ByteBuffer): Unit = {
+      serializedTask: ByteBuffer,
+      runMode: String = "full",
+      samplingRate : Double = 1): Unit = {
     val tr = new TaskRunner(context, taskId = taskId, attemptNumber = attemptNumber, taskName,
-      serializedTask)
+      serializedTask, runMode, samplingRate)
     runningTasks.put(taskId, tr)
     threadPool.execute(tr)
   }
@@ -168,7 +171,9 @@ private[spark] class Executor(
       val taskId: Long,
       val attemptNumber: Int,
       taskName: String,
-      serializedTask: ByteBuffer)
+      serializedTask: ByteBuffer,
+      runMode: String = "full",
+      samplingRate: Double = 1)
     extends Runnable {
 
     /** Whether this task has been killed. */
@@ -176,6 +181,8 @@ private[spark] class Executor(
 
     /** How much the JVM process has spent in GC when the task starts to run. */
     @volatile var startGCTime: Long = _
+
+    @volatile var startCPUTime: Long = _
 
     /**
      * The task to run. This will be set in run() by deserializing the task binary coming
@@ -200,6 +207,7 @@ private[spark] class Executor(
       execBackend.statusUpdate(taskId, TaskState.RUNNING, EMPTY_BYTE_BUFFER)
       var taskStart: Long = 0
       startGCTime = computeTotalGcTime()
+      startCPUTime = Utils.computeTotalCPUTime()
 
       try {
         val (taskFiles, taskJars, taskBytes) = Task.deserializeWithDependencies(serializedTask)
@@ -219,6 +227,10 @@ private[spark] class Executor(
 
         logDebug("Task " + taskId + "'s epoch is " + task.epoch)
         env.mapOutputTracker.updateEpoch(task.epoch)
+
+        // add by yunpingf
+        task.setRunMode(runMode)
+        task.setSamplingRate(samplingRate)
 
         // Run the actual task and measure its runtime.
         taskStart = System.currentTimeMillis()
@@ -273,6 +285,9 @@ private[spark] class Executor(
           // We need to subtract Task.run()'s deserialization time to avoid double-counting
           m.setExecutorRunTime((taskFinish - taskStart) - task.executorDeserializeTime)
           m.setJvmGCTime(computeTotalGcTime() - startGCTime)
+          m.setCPUTime(Utils.computeTotalCPUTime() - startCPUTime)
+          val x = m.cpuTime
+          logDebug(s"CPUTime: $x")
           m.setResultSerializationTime(afterSerialization - beforeSerialization)
           m.updateAccumulators()
         }

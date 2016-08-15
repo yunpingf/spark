@@ -85,6 +85,7 @@ abstract class TaskContext extends Serializable {
 
   // Note: getters in this class are defined with parentheses to maintain backward compatibility.
 
+
   /**
    * Returns true if the task has completed.
    */
@@ -193,6 +194,10 @@ abstract class TaskContext extends Serializable {
    * Returns the manager for this task's managed memory.
    */
   private[spark] def taskMemoryManager(): TaskMemoryManager
+
+  private[spark] def runMode(): String
+
+  private[spark] def samplingRate(): Double
 
   /**
    * Register an accumulator that belongs to this task. Accumulators must call this method when

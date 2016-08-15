@@ -27,6 +27,11 @@ import java.util.concurrent._
 import java.util.{Locale, Properties, Random, UUID}
 import javax.net.ssl.HttpsURLConnection
 
+import org.apache.spark.storage.RDDBlockId
+import tachyon.client.{TachyonFS, TachyonFile}
+import tachyon.client.file.options.{OutStreamOptions, InStreamOptions, GetInfoOptions}
+import tachyon.client.file.{FileInStream, FileOutStream, TachyonFileSystem}
+
 import scala.collection.JavaConverters._
 import scala.collection.Map
 import scala.collection.mutable.ArrayBuffer
@@ -45,7 +50,7 @@ import org.apache.log4j.PropertyConfigurator
 import org.eclipse.jetty.util.MultiException
 import org.json4s._
 import tachyon.TachyonURI
-import tachyon.client.{TachyonFS, TachyonFile}
+import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -340,6 +345,71 @@ private[spark] object Utils extends Logging {
     val rawPath = uri.getRawPath
     val rawFileName = rawPath.split("/").last
     new URI("file:///" + rawFileName).getPath.substring(1)
+  }
+
+  def readFromTachyonFile(func: String, tfs: TachyonFileSystem): AnyRef = {
+    val path = new TachyonURI(func)
+    val file: tachyon.client.file.TachyonFile = tfs.openIfExists(path)
+    if (file == null) {
+      null
+    }
+    else {
+      val fos: FileInStream = new FileInStream(tfs.getInfo(file, GetInfoOptions.defaults()),
+        InStreamOptions.defaults())
+      // outputStream.write(string.getBytes(Charset.forName("UTF-8")));
+      val oos = new ObjectInputStream(fos)
+      val obj = oos.readObject()
+      oos.close()
+      fos.close()
+      obj
+    }
+  }
+
+  def writeToTachyonFile(func: String, obj: AnyRef,
+                         tfs: TachyonFileSystem, createNew: Boolean): Unit = {
+    val path = new TachyonURI(func)
+    var file: tachyon.client.file.TachyonFile = tfs.openIfExists(path)
+    if (file != null && createNew) {
+      tfs.delete(file)
+      file = tfs.create(path)
+    } else if (file == null) {
+      file = tfs.create(path)
+    }
+    val fos: FileOutStream = new FileOutStream(file.getFileId, OutStreamOptions.defaults())
+    val oos = new ObjectOutputStream(fos)
+    oos.writeObject(obj)
+    oos.close()
+    fos.close()
+  }
+
+  def tachyonFileExist(func: String, tfs: TachyonFileSystem): Boolean = {
+    val path = new TachyonURI(func)
+    val file: tachyon.client.file.TachyonFile = tfs.openIfExists(path)
+    return file != null
+  }
+
+  def deleteTachyonFile(func: String, tfs: TachyonFileSystem): Unit = {
+    if (tachyonFileExist(func, tfs)) {
+      tfs.delete(tfs.open(new TachyonURI(func)))
+    }
+  }
+
+  def openOrNewTachyonFile(func: String, tfs: TachyonFileSystem): Unit = {
+    val path = new TachyonURI(func)
+    if (!tachyonFileExist(func, tfs)) {
+      tfs.create(path)
+    }
+  }
+
+
+  def getTachyonPaths(): List[String] = {
+    val predefinedRates = List(0.1, 0.2, 0.3)
+    val predefinedStorageLevel = List("MEMORY_ONLY", "MEMORY_ONLY_SER")
+    implicit class Crossable[X](xs: Traversable[X]) {
+      def cross[Y](ys: Traversable[Y]) = for { x <- xs; y <- ys } yield (x, y)
+    }
+    (predefinedStorageLevel cross predefinedRates.map(d => d.toString)).
+      toList.map(p => "/" + p._1 + "_" + p._2)
   }
 
     /**
@@ -1596,7 +1666,8 @@ private[spark] object Utils extends Logging {
 
   /**
    * Timing method based on iterations that permit JVM JIT optimization.
-   * @param numIters number of iterations
+    *
+    * @param numIters number of iterations
    * @param f function to be executed. If prepare is not None, the running time of each call to f
    *          must be an order of magnitude longer than one millisecond for accurate timing.
    * @param prepare function to be executed before each call to f. Its running time doesn't count.
@@ -1621,6 +1692,34 @@ private[spark] object Utils extends Logging {
     }
   }
 
+  /** Returns the total amount of cpu time spent in current thread */
+  // add by yunpingf
+  def computeTotalCPUTime(): Long = {
+    val tmb = ManagementFactory.getThreadMXBean
+    if (tmb.isCurrentThreadCpuTimeSupported) {
+      // nanoseconds to milliseconds
+      tmb.getCurrentThreadCpuTime() / 1000000
+    }
+    else {
+      0L
+    }
+  }
+
+  /** Utility function to calculate the rdd computation time */
+  // add by yunpingf
+  def computeRddTime[U](f: () => Iterator[U], context: TaskContext,
+                        rddId: Int, splitIndex: Int): Iterator[U] = {
+    val startTime = System.currentTimeMillis()
+    val startCpuTime = Utils.computeTotalCPUTime()
+    val res: Iterator[U] = f()
+    val endTime = System.currentTimeMillis()
+    val endCpuTime = Utils.computeTotalCPUTime()
+    context.taskMetrics().
+      addRddComputeTime(RDDBlockId(rddId, splitIndex),
+        (endCpuTime - startCpuTime), (endTime - startTime))
+    res
+  }
+
   /**
    * Counts the number of elements of an iterator using a while loop rather than calling
    * [[scala.collection.Iterator#size]] because it uses a for loop, which is slightly slower
@@ -1638,7 +1737,8 @@ private[spark] object Utils extends Logging {
   /**
    * Creates a symlink. Note jdk1.7 has Files.createSymbolicLink but not used here
    * for jdk1.6 support.  Supports windows by doing copy, everything else uses "ln -sf".
-   * @param src absolute path to the source
+    *
+    * @param src absolute path to the source
    * @param dst relative path for the destination
    */
   def symlink(src: File, dst: File) {

@@ -94,7 +94,8 @@ private[spark] class CoarseGrainedExecutorBackend(
         val taskDesc = ser.deserialize[TaskDescription](data.value)
         logInfo("Got assigned task " + taskDesc.taskId)
         executor.launchTask(this, taskId = taskDesc.taskId, attemptNumber = taskDesc.attemptNumber,
-          taskDesc.name, taskDesc.serializedTask)
+          taskName = taskDesc.name, serializedTask = taskDesc.serializedTask,
+          runMode = taskDesc.runMode, samplingRate = taskDesc.samplingRate)
       }
 
     case KillTask(taskId, _, interruptThread) =>

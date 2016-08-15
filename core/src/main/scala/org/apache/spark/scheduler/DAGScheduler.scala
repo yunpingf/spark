@@ -22,6 +22,7 @@ import java.util.Properties
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.collection
 import scala.collection.Map
 import scala.collection.mutable.{HashMap, HashSet, Stack}
 import scala.concurrent.duration._
@@ -856,8 +857,18 @@ class DAGScheduler(
     finalStage.setActiveJob(job)
     val stageIds = jobIdToStageIds(jobId).toArray
     val stageInfos = stageIds.flatMap(id => stageIdToStage.get(id).map(_.latestInfo))
+
     listenerBus.post(
       SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos, properties))
+    // add by yunpingf
+    val runMode = properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
+    if (runMode == RunMode.TRAINING) {
+      val samplingRate = properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE)
+      val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
+      val stageRdds = stageIds.map(id => (id, stageIdToStage.get(id).map(_.rdd).get)).
+        foldLeft(new HashMap[Int, RDD[_]]())((m, item: (Int, RDD[_])) => m += item)
+      listenerBus.post(SparkListenerBuildRddDependency(runMode, samplingRate, storageLevel, stageRdds))
+    }
     submitStage(finalStage)
 
     submitWaitingStages()
@@ -917,6 +928,7 @@ class DAGScheduler(
         val missing = getMissingParentStages(stage).sortBy(_.id)
         logDebug("missing: " + missing)
         if (missing.isEmpty) {
+          logWarning("Stage ID: " + stage.id + " Stage RDD ID: " + stage.rdd.id)
           logInfo("Submitting " + stage + " (" + stage.rdd + "), which has no missing parents")
           submitMissingTasks(stage, jobId.get)
         } else {
@@ -933,7 +945,7 @@ class DAGScheduler(
 
   /** Called when stage's parents are available and we can now do its task. */
   private def submitMissingTasks(stage: Stage, jobId: Int) {
-    logDebug("submitMissingTasks(" + stage + ")")
+    logWarning("submitMissingTasks(" + stage + ")")
     // Get our pending tasks and remember them in our pendingTasks entry
     stage.pendingPartitions.clear()
 

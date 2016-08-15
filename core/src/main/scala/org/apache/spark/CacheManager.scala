@@ -38,7 +38,6 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       partition: Partition,
       context: TaskContext,
       storageLevel: StorageLevel): Iterator[T] = {
-
     val key = RDDBlockId(rdd.id, partition.index)
     logDebug(s"Looking for partition $key")
     blockManager.get(key) match {
@@ -70,6 +69,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           // If the task is running locally, do not persist the result
           if (context.isRunningLocally) {
+            logWarning("Running Locally")
             return computedValues
           }
 
@@ -79,6 +79,8 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
+          // add by yunpingf
+          metrics.setBlockStatus(updatedBlocks.toSeq)
           new InterruptibleIterator(context, cachedValues)
 
         } finally {

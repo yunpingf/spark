@@ -84,7 +84,7 @@ private[spark] class LocalEndpoint(
     for (task <- scheduler.resourceOffers(offers).flatten) {
       freeCores -= scheduler.CPUS_PER_TASK
       executor.launchTask(executorBackend, taskId = task.taskId, attemptNumber = task.attemptNumber,
-        task.name, task.serializedTask)
+        taskName = task.name, serializedTask = task.serializedTask)
     }
   }
 }
