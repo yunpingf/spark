@@ -223,6 +223,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   private var _env: SparkEnv = _
   private var _metadataCleaner: MetadataCleaner = _
   private var _jobProgressListener: JobProgressListener = _
+  // add by yunpingf
+  private var _statsCollectorListener: StatsCollectorListener = _
   private var _statusTracker: SparkStatusTracker = _
   private var _progressBar: Option[ConsoleProgressBar] = None
   private var _ui: Option[SparkUI] = None
@@ -298,6 +300,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   private[spark] val persistentRdds = new TimeStampedWeakValueHashMap[Int, RDD[_]]
   private[spark] def metadataCleaner: MetadataCleaner = _metadataCleaner
   private[spark] def jobProgressListener: JobProgressListener = _jobProgressListener
+  // add by yunpingf
+  private[spark] def statsCollectorListener: StatsCollectorListener = _statsCollectorListener
 
   def statusTracker: SparkStatusTracker = _statusTracker
 
@@ -394,6 +398,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
   }
 
   try {
+    setTrainingArguments()
     _conf = config.clone()
     _conf.validateSettings()
 
@@ -534,6 +539,11 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     _conf.set("spark.app.id", _applicationId)
     _ui.foreach(_.setAppId(_applicationId))
     _env.blockManager.initialize(_applicationId)
+
+    // add by yunpingf
+    _statsCollectorListener =
+      new StatsCollectorListener(this, env.blockManager.master.driverEndpoint)
+    listenerBus.addListener(statsCollectorListener)
 
     // The metrics system for Driver need to be set spark.app.id to app ID.
     // So it should start after we get app ID from the task scheduler and set spark.app.id.
@@ -829,8 +839,17 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
       path: String,
       minPartitions: Int = defaultMinPartitions): RDD[String] = withScope {
     assertNotStopped()
-    hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],
-      minPartitions).map(pair => pair._2.toString).setName(path)
+
+    val runMode = getRunMode()
+    if (runMode == RunMode.TRAINING) {
+      val samplingRate = getSamplingRate()
+      hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],
+        minPartitions).map(pair => pair._2.toString).setName(path).
+        sample(false, samplingRate, System.currentTimeMillis().toInt)
+    } else {
+      hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],
+        minPartitions).map(pair => pair._2.toString).setName(path)
+    }
   }
 
   /**
@@ -1811,6 +1830,40 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     )
   }
 
+  private def setTrainingArguments(): Unit = {
+    // add by yunpingf
+    val RUN_MODE = "spark.submit.runMode"
+    val SAMPLING_RATE = "spark.submit.samplingRate"
+    val STORAGE_LEVEL = "spark.submit.storageLevel"
+
+    setLocalProperty(SparkContext.SPARK_JOB_RUN_MODE,
+      if (System.getProperty(RUN_MODE) == null) RunMode.FULL else System.getProperty(RUN_MODE))
+    setLocalProperty(SparkContext.SPARK_JOB_SAMPLING_RATE,
+      if (System.getProperty(SAMPLING_RATE) == null) "1" else System.getProperty(SAMPLING_RATE))
+    setLocalProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL,
+      if (System.getProperty(STORAGE_LEVEL) == null) "MEMORY_ONLY"
+        else System.getProperty(STORAGE_LEVEL))
+    MyLog.info("Spark Context setTrainingArguments")
+    MyLog.info("Run Mode = " + getRunMode())
+    MyLog.info("Sampling Rate = " + getSamplingRate())
+  }
+
+  private[spark] def getRunMode(): String = {
+    return getLocalProperty(SparkContext.SPARK_JOB_RUN_MODE)
+  }
+
+  private[spark] def getSamplingRate(): Double = {
+    return getLocalProperty(SparkContext.SPARK_JOB_SAMPLING_RATE).toDouble
+  }
+
+  private[spark] def getStorageLevel(): String = {
+    return getLocalProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
+  }
+
+  private[spark] def getTaskScheduler(): TaskSchedulerImpl = {
+    return _taskScheduler.asInstanceOf[TaskSchedulerImpl]
+  }
+
   /**
    * Run a function on a given set of partitions in an RDD and pass the results to the given
    * handler function. This is the main entry point for all actions in Spark.
@@ -1829,6 +1882,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
+
     dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
     rdd.doCheckpoint()
@@ -1987,6 +2041,8 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     assertNotStopped()
     val cleanF = clean(processPartition)
     val callSite = getCallSite
+
+
     val waiter = dagScheduler.submitJob(
       rdd,
       (context: TaskContext, iter: Iterator[T]) => cleanF(iter),
@@ -2344,6 +2400,10 @@ object SparkContext extends Logging {
   private[spark] val SPARK_JOB_INTERRUPT_ON_CANCEL = "spark.job.interruptOnCancel"
   private[spark] val RDD_SCOPE_KEY = "spark.rdd.scope"
   private[spark] val RDD_SCOPE_NO_OVERRIDE_KEY = "spark.rdd.scope.noOverride"
+  // add by yunpingf
+  private[spark] val SPARK_JOB_RUN_MODE = "spark.job.runMode"
+  private[spark] val SPARK_JOB_SAMPLING_RATE = "spark.job.samplingRate"
+  private[spark] val SPARK_JOB_STORAGE_LEVEL = "spark.job.storageLevel"
 
   /**
    * Executor id for the driver.  In earlier versions of Spark, this was `<driver>`, but this was

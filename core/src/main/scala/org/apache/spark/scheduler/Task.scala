@@ -79,6 +79,9 @@ private[spark] abstract class Task[T](
       internalAccumulators,
       runningLocally = false)
     TaskContext.setTaskContext(context)
+    context.setRunMode(this._runMode)
+    context.setSamplingRate(this._samplingRate)
+
     context.taskMetrics.setHostname(Utils.localHostName())
     context.taskMetrics.setAccumulatorsUpdater(context.collectInternalAccumulators)
     taskThread = Thread.currentThread()
@@ -134,6 +137,20 @@ private[spark] abstract class Task[T](
 
   // Task context, to be initialized in run().
   @transient protected var context: TaskContextImpl = _
+
+  private var _runMode : String = _
+
+  def setRunMode(runMode: String): Unit =
+    _runMode = runMode
+
+  def runMode: String = _runMode
+
+  private var _samplingRate: Double = _
+
+  def setSamplingRate(samplingRate: Double): Unit =
+    _samplingRate = samplingRate
+
+  def samplingRate: Double = _samplingRate
 
   // The actual Thread on which the task is running, if any. Initialized in run().
   @volatile @transient private var taskThread: Thread = _

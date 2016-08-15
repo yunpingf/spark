@@ -17,9 +17,12 @@
 
 package org.apache.spark.rdd
 
+import org.apache.spark.storage.RDDBlockId
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.Utils
 
 /**
  * An RDD that applies the provided function to every partition of the parent RDD.
@@ -34,8 +37,13 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
-  override def compute(split: Partition, context: TaskContext): Iterator[U] =
-    f(context, split.index, firstParent[T].iterator(split, context))
+  override def compute(split: Partition, context: TaskContext): Iterator[U] = {
+    // add time computation by yunpingf
+    val fx = () => {
+      f(context, split.index, firstParent[T].iterator(split, context))
+    }
+    Utils.computeRddTime[U](fx, context, this.id, split.index)
+  }
 
   override def clearDependencies() {
     super.clearDependencies()

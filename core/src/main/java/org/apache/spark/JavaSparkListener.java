@@ -50,6 +50,9 @@ public class JavaSparkListener implements SparkListener {
   public void onJobStart(SparkListenerJobStart jobStart) { }
 
   @Override
+  public void onBuildRddDependency(SparkListenerBuildRddDependency buildRddDependency){}
+
+  @Override
   public void onJobEnd(SparkListenerJobEnd jobEnd) { }
 
   @Override

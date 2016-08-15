@@ -18,10 +18,11 @@
 package org.apache.spark.storage
 
 import java.io._
+import java.lang.management.ManagementFactory
 import java.nio.{ByteBuffer, MappedByteBuffer}
 import java.util.concurrent.ConcurrentHashMap
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Random
@@ -171,6 +172,9 @@ private[spark] class BlockManager(
 
   private val NON_TASK_WRITER = -1024L
 
+  // add by yunpingf
+  private val blockAvgSerializeTime = new HashMap[BlockId, HashSet[Long]]
+  private val blockAvgDeserializeTime = new HashMap[BlockId, HashSet[Long]]
   /**
    * Initializes the BlockManager with the given appId. This is not performed in the constructor as
    * the appId may not be known at BlockManager instantiation time (in particular for the driver,
@@ -375,8 +379,11 @@ private[spark] class BlockManager(
       val inMemSize = Math.max(status.memSize, droppedMemorySize)
       val inExternalBlockStoreSize = status.externalBlockStoreSize
       val onDiskSize = status.diskSize
+      val avgSerializeTime = status.avgSerializeTime
+      val avgDeserializeTime = status.avgDeserializeTime
       master.updateBlockInfo(
-        blockManagerId, blockId, storageLevel, inMemSize, onDiskSize, inExternalBlockStoreSize)
+        blockManagerId, blockId, storageLevel, inMemSize, onDiskSize, inExternalBlockStoreSize,
+        avgSerializeTime, avgDeserializeTime)
     } else {
       true
     }
@@ -404,7 +411,17 @@ private[spark] class BlockManager(
           val externalBlockStoreSize =
             if (inExternalBlockStore) externalBlockStore.getSize(blockId) else 0L
           val diskSize = if (onDisk) diskStore.getSize(blockId) else 0L
-          BlockStatus(storageLevel, memSize, diskSize, externalBlockStoreSize)
+          // add by yunpingf
+          def average(nums: HashSet[Long]): Long = {
+            if (nums.size == 0) return 0L
+            nums.sum / nums.size
+          }
+          val avgSerializeTime = average(blockAvgSerializeTime.
+            getOrElseUpdate(blockId, new HashSet[Long]))
+          val avgDeserializeTime = average(blockAvgDeserializeTime.
+            getOrElseUpdate(blockId, new HashSet[Long]))
+          BlockStatus(storageLevel, memSize, diskSize,
+            externalBlockStoreSize, avgSerializeTime, avgDeserializeTime)
       }
     }
   }
@@ -744,7 +761,6 @@ private[spark] class BlockManager(
         tinfo
       }
     }
-
     val startTimeMs = System.currentTimeMillis
 
     /* If we're storing values and we need to replicate the data, we'll want access to the values,
@@ -801,7 +817,6 @@ private[spark] class BlockManager(
               blockId, s"Attempted to put block $blockId without specifying storage level!")
           }
         }
-
         // Actually put the values
         val result = data match {
           case IteratorValues(iterator) =>
@@ -825,6 +840,13 @@ private[spark] class BlockManager(
         }
 
         val putBlockStatus = getCurrentBlockStatus(blockId, putBlockInfo)
+        MyLog.info("Current Block Status: \n Block Id: " + blockId +
+          "\n Storage Level: " + putBlockStatus.storageLevel +
+        "\n Memory Size: " + putBlockStatus.memSize +
+          "\n Disk Size: " + putBlockStatus.diskSize +
+        "\n serializeTime: " + putBlockStatus.avgSerializeTime +
+        "\n deserializeTime: " + putBlockStatus.avgDeserializeTime)
+
         if (putBlockStatus.storageLevel != StorageLevel.NONE) {
           // Now that the block is in either the memory, externalBlockStore, or disk store,
           // let other threads read it, and tell the master about it.
@@ -1094,7 +1116,8 @@ private[spark] class BlockManager(
 
   /**
    * Remove all blocks belonging to the given RDD.
-   * @return The number of blocks removed.
+    *
+    * @return The number of blocks removed.
    */
   def removeRdd(rddId: Int): Int = {
     // TODO: Avoid a linear scan by creating another mapping of RDD.id to blocks.
@@ -1253,9 +1276,15 @@ private[spark] class BlockManager(
 
   /** Serializes into a byte buffer. */
   def dataSerialize(blockId: BlockId, values: Iterator[Any]): ByteBuffer = {
+    val startCPUTime = Utils.computeTotalCPUTime()
     val byteStream = new ByteArrayOutputStream(4096)
     dataSerializeStream(blockId, byteStream, values)
-    ByteBuffer.wrap(byteStream.toByteArray)
+    val btyeBuffer = ByteBuffer.wrap(byteStream.toByteArray)
+    val endCPUTime = Utils.computeTotalCPUTime()
+    val serializeTime = endCPUTime - startCPUTime;
+    MyLog.info("Serialize Time: " + serializeTime + "BlockId: " + blockId.toString)
+    blockAvgSerializeTime.getOrElseUpdate(blockId, new HashSet[Long]).add(serializeTime)
+    btyeBuffer
   }
 
   /**
@@ -1263,8 +1292,17 @@ private[spark] class BlockManager(
    * the iterator is reached.
    */
   def dataDeserialize(blockId: BlockId, bytes: ByteBuffer): Iterator[Any] = {
+    val startCPUTime = Utils.computeTotalCPUTime()
+    val startTime = System.currentTimeMillis()
     bytes.rewind()
-    dataDeserializeStream(blockId, new ByteBufferInputStream(bytes, true))
+    val iter = dataDeserializeStream(blockId, new ByteBufferInputStream(bytes, true))
+    val endCPUTime = Utils.computeTotalCPUTime()
+    val endTime = System.currentTimeMillis()
+    val deserializeTime = endCPUTime - startCPUTime;
+    MyLog.info("Deserialize system time: " + (endTime - startTime))
+    MyLog.info("Deserialize Time: " + deserializeTime + "BlockId: " + blockId.toString)
+    blockAvgDeserializeTime.getOrElseUpdate(blockId, new HashSet[Long]).add(deserializeTime)
+    iter
   }
 
   /**

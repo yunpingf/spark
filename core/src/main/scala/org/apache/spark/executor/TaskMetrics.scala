@@ -20,7 +20,8 @@ package org.apache.spark.executor
 import java.io.{IOException, ObjectInputStream}
 import java.util.concurrent.ConcurrentHashMap
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
+import scala.collection.mutable.{HashSet, ArrayBuffer, HashMap, ListBuffer}
 
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.executor.DataReadMethod.DataReadMethod
@@ -78,6 +79,59 @@ class TaskMetrics extends Serializable {
   def jvmGCTime: Long = _jvmGCTime
   private[spark] def setJvmGCTime(value: Long) = _jvmGCTime = value
 
+
+  /**
+  * Amount of cpu time spent in current task
+  */
+  // add by yunpingf
+  private var _cpuTime: Long = _
+  def cpuTime: Long = _cpuTime
+  private[spark] def setCPUTime(value: Long) = _cpuTime = value
+
+  /**
+  * Time for computing a rdd partition
+  */
+  // add by yunpingf
+  private val _rddIdToComputeTime = new HashMap[BlockId, ListBuffer[(Long, Long)]]
+  def rddIdToComputeTime: HashMap[BlockId, ListBuffer[(Long, Long)]] = _rddIdToComputeTime
+  private[spark] def addRddComputeTime(blockId: BlockId, cpuTime: Long, time: Long) = {
+    rddIdToComputeTime.getOrElseUpdate(blockId,
+      ListBuffer.empty[(Long, Long)]).append((cpuTime, time))
+  }
+
+  /**
+  * Time for serialize this task's rdd
+  */
+  // add by yunpingf
+  private val _blockStatus = new HashMap[BlockId, BlockStatus]
+  def setBlockStatus(status: Seq[(BlockId, BlockStatus)]): Unit = {
+    for ((blockId, blockStatus) <- status) {
+      if (_blockStatus.contains(blockId)) {
+        _blockStatus.update(blockId, blockStatus)
+      } else {
+        _blockStatus.put(blockId, blockStatus)
+      }
+    }
+  }
+  def average(nums: List[Long]): Long = {
+    if (nums.size == 0) return 0L
+    nums.sum / nums.size
+  }
+  def blockStatus: HashMap[BlockId, BlockStatus] = {
+    for ((blockId, blockStatus) <- _blockStatus) {
+      val timeOpt = _rddIdToComputeTime.get(blockId)
+      timeOpt match {
+        case Some(time) => {
+          blockStatus.avgCpuTime = average(time.toList.map(t => t._1))
+          blockStatus.avgComputeTime = average(time.toList.map(t => t._2))
+        }
+        case None => {
+
+        }
+      }
+    }
+    _blockStatus
+  }
   /**
    * Amount of time spent serializing the task result
    */
@@ -238,6 +292,20 @@ class TaskMetrics extends Serializable {
 
   private[spark] def setAccumulatorsUpdater(accumulatorsUpdater: () => Map[Long, Any]): Unit = {
     _accumulatorsUpdater = accumulatorsUpdater
+  }
+
+  override def toString(): String = {
+    val buf = new StringBuilder
+    buf ++= "\nDiskBytesSpilled: "
+    buf ++= this.diskBytesSpilled.toString
+    buf ++= "\n"
+    buf ++= "MemoryBytesSpilled: "
+    buf ++= this.memoryBytesSpilled.toString
+    buf ++= "\n"
+    buf ++= "ExecutorRunTime: "
+    buf ++= this.executorRunTime.toString
+    buf ++= "\n"
+    return buf.toString
   }
 }
 

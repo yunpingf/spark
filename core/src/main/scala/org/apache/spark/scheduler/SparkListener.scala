@@ -19,7 +19,10 @@ package org.apache.spark.scheduler
 
 import java.util.Properties
 
+import org.apache.spark.rdd.RDD
+
 import scala.collection.Map
+import scala.collection.mutable.HashMap
 import scala.collection.mutable
 
 import org.apache.spark.{Logging, TaskEndReason}
@@ -68,6 +71,16 @@ case class SparkListenerJobStart(
   val stageIds: Seq[Int] = stageInfos.map(_.stageId)
 }
 
+// add by yunpingf
+@DeveloperApi
+case class SparkListenerBuildRddDependency(runMode: String, samplingRate: String,
+                                           storageLevel: String, stageRdds: HashMap[Int, RDD[_]])
+  extends SparkListenerEvent
+
+//  add by yunpingf
+@DeveloperApi
+case class SparkListenerCollectStats() extends SparkListenerEvent
+
 @DeveloperApi
 case class SparkListenerJobEnd(
     jobId: Int,
@@ -103,7 +116,8 @@ case class SparkListenerBlockUpdated(blockUpdatedInfo: BlockUpdatedInfo) extends
 
 /**
  * Periodic updates from executors.
- * @param execId executor id
+  *
+  * @param execId executor id
  * @param taskMetrics sequence of (task id, stage id, stage attempt, metrics)
  */
 @DeveloperApi
@@ -173,6 +187,11 @@ trait SparkListener {
    * Called when a job ends
    */
   def onJobEnd(jobEnd: SparkListenerJobEnd) { }
+
+  /**
+  * Called when a job starts to build rdd dependencies
+  */
+  def onBuildRddDependency(buildRddDependency: SparkListenerBuildRddDependency){}
 
   /**
    * Called when environment properties have been updated

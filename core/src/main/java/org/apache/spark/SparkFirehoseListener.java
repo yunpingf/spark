@@ -63,6 +63,9 @@ public class SparkFirehoseListener implements SparkListener {
     }
 
     @Override
+    public final void onBuildRddDependency(SparkListenerBuildRddDependency event){onEvent(event);}
+
+    @Override
     public final void onJobEnd(SparkListenerJobEnd jobEnd) {
         onEvent(jobEnd);
     }

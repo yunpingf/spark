@@ -18,12 +18,15 @@
 // scalastyle:off println
 package org.apache.spark.examples.graphx
 
+import org.apache.log4j.{Level, Logger}
+
 /**
  * Uses GraphX to run PageRank on a LiveJournal social network graph. Download the dataset from
  * http://snap.stanford.edu/data/soc-LiveJournal1.html.
  */
 object LiveJournalPageRank {
   def main(args: Array[String]) {
+    Logger.getRootLogger.setLevel(Level.WARN)
     if (args.length < 1) {
       System.err.println(
         "Usage: LiveJournalPageRank <edge_list_file>\n" +

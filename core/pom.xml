@@ -45,6 +45,11 @@
       <version>3.6</version>
     </dependency>-->
     <dependency>
+      <groupId>open-ts</groupId>
+      <artifactId>open-ts</artifactId>
+      <version>1.0</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro-mapred</artifactId>
       <classifier>${avro.mapred.classifier}</classifier>

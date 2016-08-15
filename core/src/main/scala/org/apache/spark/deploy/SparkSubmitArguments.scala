@@ -30,6 +30,7 @@ import scala.io.Source
 import org.apache.spark.deploy.SparkSubmitAction._
 import org.apache.spark.launcher.SparkSubmitArgumentsParser
 import org.apache.spark.util.Utils
+import org.apache.spark.RunMode
 
 /**
  * Parses and encapsulates arguments from the spark-submit script.
@@ -39,6 +40,9 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
   extends SparkSubmitArgumentsParser {
   var master: String = null
   var deployMode: String = null
+  var runMode: String = null
+  var samplingRate: String = null
+  var storageLevel: String = null
   var executorMemory: String = null
   var executorCores: String = null
   var totalExecutorCores: String = null
@@ -177,6 +181,9 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
     packagesExclusions = Option(packagesExclusions)
       .orElse(sparkProperties.get("spark.jars.excludes")).orNull
     deployMode = Option(deployMode).orElse(env.get("DEPLOY_MODE")).orNull
+    runMode = Option(runMode).orElse(Option("full")).orNull
+    samplingRate = Option(samplingRate).orElse(Option("1.0")).orNull
+    storageLevel = Option(storageLevel).orElse(Option("MEMORY_ONLY")).orNull
     numExecutors = Option(numExecutors)
       .getOrElse(sparkProperties.get("spark.executor.instances").orNull)
     keytab = Option(keytab).orElse(sparkProperties.get("spark.yarn.keytab")).orNull
@@ -330,6 +337,18 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
           SparkSubmit.printErrorAndExit("--deploy-mode must be either \"client\" or \"cluster\"")
         }
         deployMode = value
+
+      case RUN_MODE =>
+        if (value != RunMode.TRAINING && value != RunMode.FULL) {
+          SparkSubmit.printErrorAndExit("--deploy-mode must be either \"training\" or \"full\"")
+        }
+        runMode = value
+
+      case SAMPLING_RATE =>
+        samplingRate = value
+
+      case STORAGE_LEVEL =>
+        storageLevel = value
 
       case NUM_EXECUTORS =>
         numExecutors = value

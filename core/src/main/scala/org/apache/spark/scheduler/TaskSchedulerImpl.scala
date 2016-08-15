@@ -22,6 +22,9 @@ import java.util.{TimerTask, Timer}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
+import tachyon.client.file.TachyonFileSystem
+import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
@@ -90,6 +93,10 @@ private[spark] class TaskSchedulerImpl(
   // Number of tasks running on each executor
   private val executorIdToTaskCount = new HashMap[String, Int]
 
+  private val executorIdToTasks = new HashMap[String, ArrayBuffer[Task[_]]];
+  def getExecutorIdToTasks(): HashMap[String, ArrayBuffer[Task[_]]] = {
+    executorIdToTasks
+  }
   // The set of executors we have on each host; this is used to compute hostsAlive, which
   // in turn is used to decide when we can attain data locality on a given host
   protected val executorsByHost = new HashMap[String, HashSet[String]]
@@ -157,7 +164,7 @@ private[spark] class TaskSchedulerImpl(
     waitBackendReady()
   }
 
-  override def submitTasks(taskSet: TaskSet) {
+  override def  submitTasks(taskSet: TaskSet) {
     val tasks = taskSet.tasks
     logInfo("Adding task set " + taskSet.id + " with " + tasks.length + " tasks")
     this.synchronized {
@@ -256,8 +263,15 @@ private[spark] class TaskSchedulerImpl(
             taskIdToExecutorId(tid) = execId
             executorIdToTaskCount(execId) += 1
             executorsByHost(host) += execId
+
+            if (sc.getRunMode() == RunMode.TRAINING) {
+              executorIdToTasks.getOrElseUpdate(execId, new ArrayBuffer[Task[_]]()) +=
+                taskSet.taskSet.tasks(task.index)
+            }
+
             availableCpus(i) -= CPUS_PER_TASK
             assert(availableCpus(i) >= 0)
+
             launchedTask = true
           }
         } catch {
@@ -295,7 +309,9 @@ private[spark] class TaskSchedulerImpl(
     }
 
     // Randomly shuffle offers to avoid always placing tasks on the same set of workers.
-    val shuffledOffers = Random.shuffle(offers)
+    // always get the same shuffled offers when the offers are the same
+    val seed = offers.hashCode()
+    val shuffledOffers = new Random(seed).shuffle(offers)
     // Build a list of tasks to assign to each worker.
     val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores))
     val availableCpus = shuffledOffers.map(o => o.cores).toArray
@@ -316,12 +332,17 @@ private[spark] class TaskSchedulerImpl(
       do {
         launchedTask = resourceOfferSingleTaskSet(
             taskSet, maxLocality, shuffledOffers, availableCpus, tasks)
+
       } while (launchedTask)
     }
 
     if (tasks.size > 0) {
       hasLaunchedTask = true
+      if (sc.getRunMode() == RunMode.TRAINING) {
+
+      }
     }
+    // MyLog.info("Task Descriptions: " + tasks);
     return tasks
   }
 

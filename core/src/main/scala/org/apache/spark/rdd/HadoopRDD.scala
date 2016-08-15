@@ -240,7 +240,6 @@ class HadoopRDD[K, V](
       context.addTaskCompletionListener{ context => closeIfNeeded() }
       val key: K = reader.createKey()
       val value: V = reader.createValue()
-
       override def getNext(): (K, V) = {
         try {
           finished = !reader.next(key, value)

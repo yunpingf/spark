@@ -56,6 +56,20 @@ private[spark] class TaskContextImpl(
   // Whether the task has failed.
   @volatile private var failed: Boolean = false
 
+  private var _runMode: String = "full"
+
+  override def runMode(): String = _runMode
+
+  def setRunMode(runMode: String): Unit =
+    _runMode = runMode
+
+  private var _samplingRate: Double = 1
+
+  override def samplingRate(): Double = _samplingRate
+
+  def setSamplingRate(samplingRate: Double): Unit =
+    _samplingRate = samplingRate
+
   override def addTaskCompletionListener(listener: TaskCompletionListener): this.type = {
     onCompleteCallbacks += listener
     this

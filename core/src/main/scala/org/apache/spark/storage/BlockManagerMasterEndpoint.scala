@@ -60,7 +60,8 @@ class BlockManagerMasterEndpoint(
       context.reply(true)
 
     case _updateBlockInfo @ UpdateBlockInfo(
-      blockManagerId, blockId, storageLevel, deserializedSize, size, externalBlockStoreSize) =>
+      blockManagerId, blockId, storageLevel, deserializedSize, size, externalBlockStoreSize,
+      avgSerializeTime, avgDeserializeTime) =>
       context.reply(updateBlockInfo(
         blockManagerId, blockId, storageLevel, deserializedSize, size, externalBlockStoreSize))
       listenerBus.post(SparkListenerBlockUpdated(BlockUpdatedInfo(_updateBlockInfo)))
@@ -124,6 +125,10 @@ class BlockManagerMasterEndpoint(
           }
         case None => context.reply(false)
       }
+    case HelloMaster(mesg) => { // add by yunpingf
+      println("!!!!!" + mesg)
+      context.reply(true)
+    }
   }
 
   private def removeRdd(rddId: Int): Future[Seq[Int]] = {
@@ -326,7 +331,9 @@ class BlockManagerMasterEndpoint(
       storageLevel: StorageLevel,
       memSize: Long,
       diskSize: Long,
-      externalBlockStoreSize: Long): Boolean = {
+      externalBlockStoreSize: Long,
+      avgSerializeTime: Long = 0L,
+      avgDeserializeTime: Long = 0L): Boolean = {
 
     if (!blockManagerInfo.contains(blockManagerId)) {
       if (blockManagerId.isDriver && !isLocal) {
@@ -344,7 +351,8 @@ class BlockManagerMasterEndpoint(
     }
 
     blockManagerInfo(blockManagerId).updateBlockInfo(
-      blockId, storageLevel, memSize, diskSize, externalBlockStoreSize)
+      blockId, storageLevel, memSize, diskSize, externalBlockStoreSize,
+      avgSerializeTime, avgDeserializeTime)
 
     var locations: mutable.HashSet[BlockManagerId] = null
     if (blockLocations.containsKey(blockId)) {
@@ -408,7 +416,11 @@ case class BlockStatus(
     storageLevel: StorageLevel,
     memSize: Long,
     diskSize: Long,
-    externalBlockStoreSize: Long) {
+    externalBlockStoreSize: Long,
+    avgSerializeTime: Long = 0L,
+    avgDeserializeTime: Long = 0L,
+    var avgCpuTime: Long = 0L,
+    var avgComputeTime: Long = 0L) {
   def isCached: Boolean = memSize + diskSize + externalBlockStoreSize > 0
 }
 
@@ -444,7 +456,9 @@ private[spark] class BlockManagerInfo(
       storageLevel: StorageLevel,
       memSize: Long,
       diskSize: Long,
-      externalBlockStoreSize: Long) {
+      externalBlockStoreSize: Long,
+      avgSerializeTime: Long = 0L,
+      avgDeserializeTime: Long = 0L) {
 
     updateLastSeenMs()
 

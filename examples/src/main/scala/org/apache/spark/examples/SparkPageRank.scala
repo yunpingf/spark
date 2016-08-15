@@ -19,7 +19,7 @@
 package org.apache.spark.examples
 
 import org.apache.spark.SparkContext._
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{MyLog, SparkConf, SparkContext}
 
 /**
  * Computes the PageRank of URLs from an input file. Input file should
@@ -52,7 +52,9 @@ object SparkPageRank {
     showWarning()
 
     val sparkConf = new SparkConf().setAppName("PageRank")
-    val iters = if (args.length > 1) args(1).toInt else 10
+    MyLog.info("SparkPAgERank args")
+    MyLog.info(args.deep.mkString(", "))
+    val iters = if (args.length > 1) args(1).toInt else 2
     val ctx = new SparkContext(sparkConf)
     val lines = ctx.textFile(args(0), 1)
     val links = lines.map{ s =>
@@ -70,7 +72,7 @@ object SparkPageRank {
     }
 
     val output = ranks.collect()
-    output.foreach(tup => println(tup._1 + " has rank: " + tup._2 + "."))
+    // output.foreach(tup => println(tup._1 + " has rank: " + tup._2 + "."))
 
     ctx.stop()
   }

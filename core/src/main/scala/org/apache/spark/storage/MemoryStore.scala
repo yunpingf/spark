@@ -23,7 +23,7 @@ import java.util.LinkedHashMap
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.TaskContext
+import org.apache.spark.{MyLog, TaskContext}
 import org.apache.spark.memory.MemoryManager
 import org.apache.spark.util.{SizeEstimator, Utils}
 import org.apache.spark.util.collection.SizeTrackingVector
@@ -127,6 +127,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       values: Array[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
+    MyLog.info("MemoryStore.putArray: " + blockId + " " + level)
     val droppedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
     if (level.deserialized) {
       val sizeEstimate = SizeEstimator.estimate(values.asInstanceOf[AnyRef])

@@ -23,42 +23,25 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark._
 import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.storage.BlockManagerMessages.HelloMaster
-import org.apache.spark.storage.{BlockId, StorageLevel, BlockStatus}
+import org.apache.spark.storage.{RDDBlockId, BlockId, StorageLevel, BlockStatus}
 import org.apache.spark.util.Utils
 import tachyon.TachyonURI
 import tachyon.client.file.options.{GetInfoOptions, InStreamOptions, OutStreamOptions}
 import tachyon.client.file.{FileInStream, TachyonFile, FileOutStream, TachyonFileSystem}
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
-import scala.collection.mutable.{HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 // scalastyle:off println
 class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoint: RpcEndpointRef)
   extends SparkListener with Logging {
-  val rddToChildren = new HashMap[RDD[_], HashSet[RDD[_]]]
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
-  var rddDependency: HashMap[Int, HashSet[Int]] = _
-  var runMode: String = sc.getRunMode()
-  var samplingRate: Double = sc.getSamplingRate()
-  var storageLevel: String = sc.getStorageLevel()
+  var runMode: String = _
+  var samplingRate: Double = _
+  var storageLevel: String = _
   val blockStats = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
   val taskScheduler: TaskSchedulerImpl = sc.getTaskScheduler()
-
-  // add by yunpingf
-  private def buildDependency(rdd: RDD[_]): Unit = {
-    val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
-
-    for (pr <- parentRDDs) {
-      if (rddToChildren.contains(pr)) {
-        rddToChildren.get(pr).get.add(rdd)
-        if (runMode == RunMode.TRAINING) {
-          pr.persist(StorageLevel.fromString(storageLevel), true)
-        }
-      } else {
-        rddToChildren.put(pr, new HashSet[RDD[_]])
-      }
-      buildDependency(pr)
-    }
-  }
+  var stageRdds: HashMap[Int, RDD[_]] = _
+  val candidateRDDs = new ArrayBuffer[RDD[_]]
 
   private def setTrainingStorageLevel(): Unit = {
 
@@ -102,26 +85,91 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       readFromFile()
 
       val executorIdToTasks = taskScheduler.getExecutorIdToTasks()
+      // executorId -> Array(stageId, partitionId)
+      MyLog.info(executorIdToTasks.toString())
+
+      val stageIds = stageRdds.keySet.toList.sorted
+      type PartitionDependency = HashMap[BlockId, HashSet[Int]] // blockId -> Set(stageId)
+      val executorIdToParDep = new HashMap[String, PartitionDependency]
+
+      def findDps(rdd: RDD[_], partitions: Seq[Int],
+                  stageId: Int, dp: PartitionDependency,
+                  previousBlockIds: HashSet[BlockId]): Unit = {
+        for (p <- partitions) {
+          val newBlockId = new RDDBlockId(rdd.id, p)
+          if (previousBlockIds.contains(newBlockId)) {
+            dp.getOrElseUpdate(newBlockId, new HashSet[Int]).add(stageId)
+          } else {
+            previousBlockIds.add(newBlockId)
+          }
+        }
+
+        val parentDps = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).
+          map(x => x.asInstanceOf[NarrowDependency[_]])
+        for (parentDp <- parentDps) {
+          val parentRDD = parentDp.rdd
+          for (p <- partitions) {
+            val parentPartitions = parentDp.getParents(p)
+            findDps(parentRDD, parentPartitions, stageId, dp, previousBlockIds)
+          }
+        }
+      }
+
+      for ((executorId, tasks) <- executorIdToTasks) {
+        val dp = new PartitionDependency
+        val previousBlockIds = new HashSet[BlockId]
+        for (stageId <- stageIds) {
+          val stageRDD = stageRdds(stageId)
+          val stageTasks = tasks.filter(t => t.stageId == stageId)
+          val stagePartitions = stageTasks.map(t => t.partitionId)
+          findDps(stageRDD, stagePartitions, stageId, dp, previousBlockIds)
+        }
+        executorIdToParDep.put(executorId, dp)
+      }
+      MyLog.info(executorIdToParDep.toString())
+      MyLog.info(blockStats.toString())
+    }
+    else {
+      MyLog.info("Run Mode: " + runMode)
+      val executorIdToTasks = taskScheduler.getExecutorIdToTasks()
       MyLog.info(executorIdToTasks.toString())
     }
 
   }
 
   override def onBuildRddDependency(buildRddDependency: SparkListenerBuildRddDependency): Unit = {
-    rddDependency = Utils.readFromTachyonFile(TachyonPath.rddDependency, tfs).
-      asInstanceOf[HashMap[Int, HashSet[Int]]]
-    val stageRdds = buildRddDependency.stageRdds // stageId -> Stage
+    // rddDependency = Utils.readFromTachyonFile(TachyonPath.rddDependency, tfs).
+    //  asInstanceOf[HashMap[Int, HashSet[Int]]]
+    MyLog.info("Building Dependency")
+    runMode = buildRddDependency.runMode
+    samplingRate = buildRddDependency.samplingRate.toDouble
+    storageLevel = buildRddDependency.storageLevel
+    stageRdds = buildRddDependency.stageRdds // stageId -> RDD
+    val rddToChildren = new HashMap[RDD[_], HashSet[RDD[_]]]
+
+    def buildDependency(rdd: RDD[_]): Unit = {
+      val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
+      for (pr <- parentRDDs) {
+        if (rddToChildren.contains(pr)) {
+          rddToChildren.get(pr).get.add(rdd)
+          if (runMode == RunMode.TRAINING) {
+            pr.persist(StorageLevel.fromString(storageLevel), true)
+            candidateRDDs.append(pr)
+          }
+        } else {
+          rddToChildren.put(pr, new HashSet[RDD[_]])
+        }
+        buildDependency(pr)
+      }
+    }
+
+
     if (runMode == RunMode.TRAINING) {
       for ((id, rdd) <- stageRdds) {
         buildDependency(rdd)
       }
     }
-    println("==================")
-    for ((father, children) <- rddToChildren) {
-      if (children.size > 1) {
-        println("RDD Dependency:" + father.id + " " +  children.map(rdd => rdd.id))
-      }
-    }
+
     blockManagerMasterEndpoint.askWithRetry[Boolean](HelloMaster("I'm Baymax"))
   }
 
