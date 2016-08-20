@@ -16,101 +16,108 @@
  */
 package org.apache.spark
 
-import org.apache.spark.storage.{BlockId, StorageLevel}
+import org.apache.spark.storage.BlockId
+import org.apache.spark.util.Utils
 import org.coinor.opents._
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 
-import scala.collection.mutable.{HashMap, HashSet, PriorityQueue}
+import scala.collection.mutable.{ArrayBuffer, HashMap, LinkedHashMap}
 
-class MyObjectiveFunction extends ObjectiveFunction with Logging {
-  type PartitionDependency = HashMap[BlockId, HashSet[Int]] // blockId -> Set(stageId)
-
+class MyObjectiveFunction(blockIdToStages: LinkedHashMap[BlockId, ArrayBuffer[Int]])
+  extends ObjectiveFunction with Logging {
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
-  val candidateRDDs: List[BlockId] = List[BlockId]()
-  // storageLevel -> (BlockId -> BlockStatus)
-  //  val blockStats: HashMap[String, HashMap[BlockId, HashSet[BlockStatus]]] =
-  //    new HashMap[String, HashMap[BlockId, HashSet[BlockStatus]]]()
-  val blockStats: HashMap[BlockId, BlockStats] = new HashMap[BlockId, BlockStats]()
-  val partitionDependency: PartitionDependency = new PartitionDependency()
-  val stageMemory: HashMap[Int, Long] = new HashMap[Int, Long]
-  // have order
-  val stageBlocks: HashMap[Int, List[BlockId]] = new HashMap[Int, List[BlockId]]
-
-  def this(executorId: String) = {
-    this()
-
-  }
+  val blockStats: HashMap[BlockId, BlockStats] = getBlockStats()
+  // blocks in this stage have order
+  val stageBlocks: HashMap[Int, List[BlockId]] = getStageBlocks()
 
   override def evaluate(solution: Solution, move: Move): Array[Double] = {
+    if (move == null) {
+      evaluateAbsolutely(solution, move)
+    } else {
+      logInfo("Evaluating this move: " + move)
+      move.operateOn(solution)
+      evaluateAbsolutely(solution, move)
+    }
+  }
+
+  def evaluateAbsolutely(solution: Solution, move: Move):
+  Array[Double] = {
     val storageLevels = solution.asInstanceOf[MySolution].storageLevels
-    val executorMemory = solution.asInstanceOf[MySolution].executorMemory
+
+    val startStageId = stageBlocks.keySet.min
+    val endStageId = stageBlocks.keySet.max
     val isMem = new HashMap[BlockId, Boolean]
     val isDisk = new HashMap[BlockId, Boolean]
-
-    case class Elem(var priority: Int, blockId: BlockId)
-    def MyOrdering = new Ordering[Elem] {
-      def compare(a: Elem, b: Elem) = a.priority.compare(b.priority) * (-1)
-    }
-
-    if (move == null) {
-      val time: Double = 0.0
-      return Array[Double] {
-        time
-      }
-    } else {
-      // Else calculate incrementally
-      var time: Double = 0.0
-      val mv = move.asInstanceOf[MyMove]
-      val blockId = mv.blockId
-      val fromLevel: StorageLevel = storageLevels(blockId)
-      val toLevel: StorageLevel = mv.toLevel
-
-      val stageIds = partitionDependency(blockId)
-      val startStageId = stageIds.min
-      val endStageId = stageBlocks.keySet.max
-
-      val pq = new PriorityQueue[Elem]()(MyOrdering)
-
-      for (id <- 0 to startStageId - 1) {
-        // have order
-        val blockIdsThisStage = stageBlocks.getOrElse(id, List.empty)
-        for (bid <- blockIdsThisStage) {
-          MyLog.info("Stage: " + id + " " + "Block: " + bid)
-          pq.find(x => x.blockId.equals(bid)) match {
-            case Some(elem: Elem) => elem.priority += 1
-            case None => pq.enqueue(new Elem(1, bid))
+    var time: Long = 0
+    var executorMemory: Long = solution.asInstanceOf[MySolution].executorMemory
+    val entries = new ArrayBuffer[BlockId]()
+    for (stageId <- startStageId to endStageId) {
+      logInfo("Current Stage: " + stageId)
+      // blocks in this stage, can be empty if there is no candidate blocks
+      val blocks: List[BlockId] = stageBlocks.getOrElse(stageId, List.empty[BlockId])
+      logInfo("Blocks in this stage: " + blocks)
+      for (blockId <- blocks) {
+        logInfo("Evaluating block: " + blockId)
+        if (isMem.getOrElse(blockId, false)) {
+          // read from memory
+          logInfo("Read from memory")
+        } else {
+          if (isDisk.getOrElse(blockId, false)) {
+            // read from disk
+            logInfo("Read from disk")
+            time += blockStats(blockId).stats(FieldName.DESER_TIME)
+          } else {
+            // compute from scratch
+            logInfo("Compute from scratch")
+            time += blockStats(blockId).stats(FieldName.COMPUTE_TIME)
           }
-
-          val stats = blockStats(bid)
-          if (storageLevels(bid).useMemory) {
-            val blockSize = if (storageLevels(bid).deserialized) stats.stats(FieldName.MEM_SIZE)
-              else stats.stats(FieldName.DISK_SIZE)
-            val blockTime = if (storageLevels(bid).deserialized) stats.stats(FieldName.COMPUTE_TIME)
-              else stats.stats(FieldName.COMPUTE_TIME) + stats.stats(FieldName.SER_TIME)
-            val otherBlocks = pq.filter((elem: Elem) =>
-              (elem.blockId.asRDDId.get.rddId != bid.asRDDId.get.rddId))
-            while (otherBlocks.size > 0 && executorMemory < blockSize) {
-
+          // try to store
+          if (storageLevels(blockId).useMemory) {
+            val otherBlocks =
+              entries.filter(x => (x.asRDDId.get.rddId == blockId.asRDDId.get.rddId))
+            val selectedBlocks = new ArrayBuffer[BlockId]
+            val iter = otherBlocks.iterator
+            val blockSize = blockStats(blockId).stats(FieldName.MEM_SIZE)
+            while (executorMemory < blockSize && iter.hasNext) {
+              val nextBlockId = iter.next()
+              selectedBlocks += nextBlockId
+              executorMemory += blockStats(nextBlockId).stats(FieldName.MEM_SIZE)
+              logInfo(nextBlockId + " is evicted from memory")
+              isMem(nextBlockId) = false
             }
-          } else {
-
-          }
-        }
-      }
-
-      for (id <- startStageId to endStageId) {
-        // have order
-        val blockIdsThisStage = stageBlocks.getOrElse(id, List.empty)
-        for (bid <- blockIdsThisStage) {
-          if (bid.equals(blockId)) {
-
-          } else {
-
+            if (executorMemory > blockSize) {
+              isMem(blockId) = true
+              entries.append(blockId)
+              logInfo(blockId + " is put in memory")
+            } else {
+              logInfo(blockId + "can't be put in memory")
+              if (storageLevels(blockId).useDisk) {
+                isDisk(blockId) = true
+                time += blockStats(blockId).stats(FieldName.SER_TIME)
+              }
+            }
+            logInfo("Time: " + time)
+            logInfo("Executor memory left: " + executorMemory)
+            solution.asInstanceOf[MySolution].executorMemoryVar = executorMemory
+          } else if (storageLevels(blockId).useDisk) {
+            logInfo("Put " + blockId + " into disk")
+            isDisk(blockId) = true
+            time += blockStats(blockId).stats(FieldName.SER_TIME)
+            logInfo("Time: " + time)
           }
         }
       }
     }
+    return Array[Double] {
+      time
+    }
+  }
+
+  def evaluateIncrementally(solution: Solution, move: Move):
+  Array[Double] = {
+    move.operateOn(solution)
+    evaluateAbsolutely(solution, move)
     return null
   }
 
@@ -118,11 +125,21 @@ class MyObjectiveFunction extends ObjectiveFunction with Logging {
 
   }
 
-  def setBlockStats(): Unit = {
-
+  def getBlockStats(): HashMap[BlockId, BlockStats] = {
+    // HashMap[BlockId, BlockStats]
+    val stats = Utils.readFromTachyonFile(TachyonPath.rddPrediction, tfs).
+      asInstanceOf[HashMap[BlockId, BlockStats]]
+    stats
   }
 
-  def setPartitionDependency(): Unit = {
-
+  def getStageBlocks(): HashMap[Int, List[BlockId]] = {
+    val stageBlocks = new HashMap[Int, List[BlockId]]
+    for ((blockId, stages) <- blockIdToStages) {
+      for (s <- stages) {
+        val blocks = stageBlocks.getOrElse(s, List[BlockId]())
+        stageBlocks.update(s, blocks :+ blockId)
+      }
+    }
+    stageBlocks
   }
 }

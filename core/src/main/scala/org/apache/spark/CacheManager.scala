@@ -80,7 +80,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
           // add by yunpingf
-          metrics.setBlockStatus(updatedBlocks.toSeq)
+          metrics.setBlockStatus(updatedBlocks.filter(x => x._1.isRDD).toSeq)
           new InterruptibleIterator(context, cachedValues)
 
         } finally {

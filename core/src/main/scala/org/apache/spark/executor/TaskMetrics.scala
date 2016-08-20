@@ -92,8 +92,9 @@ class TaskMetrics extends Serializable {
   * Time for computing a rdd partition
   */
   // add by yunpingf
-  private val _rddIdToComputeTime = new HashMap[BlockId, ListBuffer[(Long, Long)]]
-  def rddIdToComputeTime: HashMap[BlockId, ListBuffer[(Long, Long)]] = _rddIdToComputeTime
+  private val _rddIdToComputeTime = new mutable.LinkedHashMap[BlockId, ListBuffer[(Long, Long)]]
+  def rddIdToComputeTime: mutable.LinkedHashMap[BlockId, ListBuffer[(Long, Long)]] =
+    _rddIdToComputeTime
   private[spark] def addRddComputeTime(blockId: BlockId, cpuTime: Long, time: Long) = {
     rddIdToComputeTime.getOrElseUpdate(blockId,
       ListBuffer.empty[(Long, Long)]).append((cpuTime, time))

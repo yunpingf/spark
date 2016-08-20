@@ -22,13 +22,10 @@ import org.coinor.opents._
 import scala.collection.mutable.HashMap
 
 class MySolution(val candidateRDDs: List[BlockId],
-
                  val executorMemory: Long) extends SolutionAdapter {
   val storageLevels: HashMap[BlockId, StorageLevel] =
     HashMap(candidateRDDs.map(r => (r, StorageLevel.MEMORY_ONLY)): _*)
-
-  val isMem: HashMap[BlockId, Boolean] = HashMap(candidateRDDs.map(r => (r, true)): _*)
-  val isDisk: HashMap[BlockId, Boolean] = HashMap(candidateRDDs.map(r => (r, false)): _*)
+  var executorMemoryVar: Long = 0
 
 //  override def clone: MySolution = {
 //    val copy = super.clone().asInstanceOf[MySolution]
@@ -39,14 +36,8 @@ class MySolution(val candidateRDDs: List[BlockId],
 //  }
 
   def setStorageLevel(blockId: BlockId, toLevel: StorageLevel): Unit = {
+    val fromLevel = storageLevels(blockId)
+    MyLog.info("Block: " + blockId + " from " + fromLevel + " to " + toLevel)
     storageLevels.update(blockId, toLevel)
-  }
-
-  def setIsMem(blockId: BlockId, flag: Boolean): Unit = {
-    isMem.update(blockId, flag)
-  }
-
-  def setIsDisk(blockId: BlockId, flag: Boolean): Unit = {
-    isDisk.update(blockId, flag)
   }
 }

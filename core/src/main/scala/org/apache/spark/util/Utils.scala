@@ -402,14 +402,14 @@ private[spark] object Utils extends Logging {
   }
 
 
-  def getTachyonPaths(): List[String] = {
+  def getTachyonPaths(folder: String): List[String] = {
     val predefinedRates = List(0.1, 0.2, 0.3)
-    val predefinedStorageLevel = List("MEMORY_ONLY", "MEMORY_ONLY_SER")
+    val predefinedStorageLevel = List("MEMORY_ONLY", "MEMORY_ONLY_SER", "DISK_ONLY")
     implicit class Crossable[X](xs: Traversable[X]) {
       def cross[Y](ys: Traversable[Y]) = for { x <- xs; y <- ys } yield (x, y)
     }
     (predefinedStorageLevel cross predefinedRates.map(d => d.toString)).
-      toList.map(p => "/" + p._1 + "_" + p._2)
+      toList.map(p => "/" + folder + p._1 + "_" + p._2)
   }
 
     /**

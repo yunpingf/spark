@@ -16,7 +16,7 @@
  */
 package org.apache.spark
 
-import org.apache.spark.storage.{StorageLevel, BlockId}
+import org.apache.spark.storage.{BlockId, StorageLevel}
 import org.coinor.opents._
 
 import scala.collection.mutable
@@ -24,9 +24,10 @@ import scala.collection.mutable.ArrayBuffer
 
 class MyMoveManager extends MoveManager {
   def getAllMoves(solution: Solution): Array[Move] = {
+    // HashMap[BlockId, StorageLevel]
     val storageLevels: mutable.HashMap[BlockId, StorageLevel] =
       solution.asInstanceOf[MySolution].storageLevels
-    val memoryLeft = solution.asInstanceOf[MySolution].memoryLeft
+    val executorMemoryVar = solution.asInstanceOf[MySolution].executorMemoryVar
 
     val size = storageLevels.size
     val moves = new ArrayBuffer[Move]()
@@ -36,15 +37,16 @@ class MyMoveManager extends MoveManager {
       StorageLevel.MEMORY_AND_DISK, StorageLevel.MEMORY_AND_DISK_SER)
     for ((blockId, level) <- storageLevels) {
       for (lev <- levels) {
-        val ifContinue = (level.equals(StorageLevel.MEMORY_ONLY) && memoryLeft > 0
+        val ifContinue = (level.equals(StorageLevel.MEMORY_ONLY) && executorMemoryVar > 0
           && lev.equals(StorageLevel.MEMORY_AND_DISK)) ||
-          (level.equals(StorageLevel.MEMORY_ONLY_SER) && memoryLeft > 0
-          && lev.equals(StorageLevel.MEMORY_AND_DISK_SER))
+          (level.equals(StorageLevel.MEMORY_ONLY_SER) && executorMemoryVar > 0
+            && lev.equals(StorageLevel.MEMORY_AND_DISK_SER))
         if (!ifContinue) {
           moves.append(new MyMove(blockId, lev))
         }
       }
     }
+    MyLog.info("Moves from MoveManager: " + moves)
     return moves.toArray
   }
 }
