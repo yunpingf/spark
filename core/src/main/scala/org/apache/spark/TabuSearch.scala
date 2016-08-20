@@ -20,20 +20,17 @@ import java.io.ObjectInputStream
 
 import org.apache.commons.math3.stat.regression.SimpleRegression
 import org.apache.spark.scheduler.TaskDescription
-import org.apache.spark.storage.{StorageLevel, BlockId, BlockStatus}
+import org.apache.spark.storage.{BlockId, BlockStatus, StorageLevel}
 import org.apache.spark.util.Utils
 import tachyon.TachyonURI
-import tachyon.client.file.options.{InStreamOptions, GetInfoOptions}
-import tachyon.client.file.{FileInStream, TachyonFileSystem}
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+import tachyon.client.file.options.{GetInfoOptions, InStreamOptions}
+import tachyon.client.file.{FileInStream, TachyonFileSystem}
 
 import scala.collection.mutable.{HashMap, HashSet}
 
 // scalastyle:off println
 object TabuSearch {
-  val predefinedRates = List(0.1, 0.2, 0.3)
-  val predefinedStorageLevel = List(StorageLevel.MEMORY_ONLY.toString,
-    StorageLevel.MEMORY_ONLY_SER.toString)
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
 
   def search(): Unit = {
@@ -43,21 +40,34 @@ object TabuSearch {
 
   }
 
-  def parsePoints(pointsSet: HashSet[(Double, BlockStatus)], field: String):
+  def parsePoints(pointsSet: HashSet[(Double, BlockStatus)], storageLevel: StorageLevel):
   (List[Double], HashMap[FieldName.Value, List[Double]]) = {
     val points = pointsSet.toList
     val x = points.map(v => v._1)
 
     val res = new HashMap[FieldName.Value, List[Double]]()
-    for (field: FieldName.Value <- FieldName.values){
+    for (field: FieldName.Value <- FieldName.values) {
       val y = field match {
-        case FieldName.MEM_SIZE => points.map(v => v._2.memSize)
-        case FieldName.DISK_SIZE => points.map(v => v._2.diskSize)
-        case FieldName.SER_TIME => points.map(v => v._2.avgSerializeTime)
-        case FieldName.DESER_TIME => points.map(v => v._2.avgDeserializeTime)
-        case FieldName.CPU_TIME => points.map(v => v._2.avgCpuTime)
-        case FieldName.COMPUTE_TIME => points.map(v => v._2.avgComputeTime)
+        case FieldName.MEM_SIZE => {
+          if (storageLevel.equals(StorageLevel.MEMORY_ONLY)) {
+            points.map(v => v._2.memSize.toDouble)
+          } else {
+            List.empty[Double]
+          }
+        }
+        case FieldName.DISK_SIZE => {
+          if (storageLevel.equals(StorageLevel.MEMORY_ONLY_SER)) {
+            points.map(v => v._2.memSize.toDouble)
+          } else {
+            List.empty[Double]
+          }
+        }
+        case FieldName.SER_TIME => points.map(v => v._2.avgSerializeTime.toDouble)
+        case FieldName.DESER_TIME => points.map(v => v._2.avgDeserializeTime.toDouble)
+        case FieldName.CPU_TIME => points.map(v => v._2.avgCpuTime.toDouble)
+        case FieldName.COMPUTE_TIME => points.map(v => v._2.avgComputeTime.toDouble)
       }
+      res.put(field, res.getOrElse(field, List[Double]()) ++ y)
     }
     (x, res)
   }
@@ -65,7 +75,7 @@ object TabuSearch {
   def linearRegression(): Unit = {
     val data = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
     val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
-    val paths = Utils.getTachyonPaths()
+    val paths = TachyonPath.trainingData()
     for (path <- paths) {
       val file = tfs.openIfExists(new TachyonURI(path))
       if (file != null) {
@@ -87,9 +97,12 @@ object TabuSearch {
         fos.close()
       }
     }
+    MyLog.info("Data: " + data.toString())
 
     def predict(x: List[Double], y: HashMap[FieldName.Value, List[Double]],
                 fieldName: FieldName.Value): Long = {
+      // val model = regression.ols(parsedPoints._1, parsedPoints._2)
+      // println(model.predict(Array(1.0)))
       val regression = new SimpleRegression()
       val ys = y(fieldName)
       val len = x.size
@@ -100,10 +113,11 @@ object TabuSearch {
     }
 
     val res = new HashMap[BlockId, BlockStats]()
-    for ((storageLevel, map) <- data) { // for each storageLevel
-      for ((blockId, points) <- map) { // for each blockId, there are multiple samplings
-        val parsedPoints = parsePoints(points, "")
-        val regression = new SimpleRegression()
+    for ((storageLevel, map) <- data) {
+      // for each storageLevel
+      for ((blockId, points) <- map) {
+        // for each blockId, there are multiple samplings
+        val parsedPoints = parsePoints(points, StorageLevel.fromString(storageLevel))
         // 0.1, 0.2, 0.3
         val x: List[Double] = parsedPoints._1
         // fieldName -> (0.1, 0.2, 0.3)
@@ -112,14 +126,14 @@ object TabuSearch {
 
         val stats: BlockStats = res.getOrElseUpdate(blockId, new BlockStats())
 
-        if (storageLevel.equals(StorageLevel.MEMORY_ONLY)) {
+        if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY)) {
           for (field: FieldName.Value <- FieldName.values) {
             field match {
               case FieldName.MEM_SIZE => {
                 stats.stats.put(field, predict(x, y, field))
               }
               case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
-                if (stats.stats.contains(field)){
+                if (stats.stats.contains(field)) {
                   val t = predict(x, y, field) + stats.stats(field)
                   stats.stats.update(field, t / 2)
                 } else {
@@ -129,7 +143,7 @@ object TabuSearch {
               case _ => {}
             }
           }
-        } else if (storageLevel.equals(StorageLevel.MEMORY_ONLY_SER)) {
+        } else if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY_SER)) {
           for (field: FieldName.Value <- FieldName.values) {
             field match {
               case FieldName.DISK_SIZE | FieldName.SER_TIME |
@@ -137,7 +151,7 @@ object TabuSearch {
                 stats.stats.put(field, predict(x, y, field))
               }
               case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
-                if (stats.stats.contains(field)){
+                if (stats.stats.contains(field)) {
                   val t = predict(x, y, field) + stats.stats(field)
                   stats.stats.update(field, t / 2)
                 } else {
@@ -153,20 +167,28 @@ object TabuSearch {
       }
     }
     MyLog.info("Prediction Finished")
-    for ((blockId, blockStats) <- res) {
+    MyLog.info("Prediction unified result: " + res.toString())
+
+    Utils.writeToTachyonFile(TachyonPath.rddPrediction, res, tfs, true)
+    val resRead = Utils.readFromTachyonFile(TachyonPath.rddPrediction, tfs).
+      asInstanceOf[HashMap[BlockId, BlockStats]]
+    for ((blockId, blockStats) <- resRead) {
       MyLog.info(blockId + " " + blockStats.toString)
     }
   }
 
   def cleanFS(): Unit = {
-    val paths = TachyonPath.taskDescription :: TachyonPath.rddDependency :: Utils.getTachyonPaths()
+    val paths = TachyonPath.taskDescription :: TachyonPath.rddDependency ::
+      TachyonPath.rddPrediction :: TachyonPath.executorIdToParDep :: TachyonPath.trainingData()
     for (p <- paths) {
       Utils.deleteTachyonFile(p, tfs)
     }
   }
 
   def main(args: Array[String]): Unit = {
-    this.linearRegression()
+    System.setProperty("spark.app.name", "org.apache.spark.examples.MovieLensALS")
+//   this.linearRegression()
+    this.cleanFS()
   }
 }
 

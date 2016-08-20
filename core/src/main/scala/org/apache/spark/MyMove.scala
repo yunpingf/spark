@@ -39,4 +39,17 @@ class MyMove (val blockId: BlockId, val toLevel: StorageLevel) extends Move {
     val state = Seq(blockId, toLevel)
     state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
   }
+
+  override def toString(): String = {
+    val level = toLevel match {
+      case StorageLevel.MEMORY_ONLY => "MEMORY_ONLY"
+      case StorageLevel.MEMORY_ONLY_SER => "MEMORY_ONLY_SER"
+      case StorageLevel.MEMORY_AND_DISK => "MEMORY_AND_DISK"
+      case StorageLevel.DISK_ONLY => "DISK_ONLY"
+      case StorageLevel.MEMORY_AND_DISK_SER => "MEMORY_AND_DISK_SER"
+      case StorageLevel.NONE => "NONE"
+    }
+    level
+  }
+
 }

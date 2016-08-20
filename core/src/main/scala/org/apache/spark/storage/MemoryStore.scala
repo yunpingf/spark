@@ -88,6 +88,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   }
 
   override def putBytes(blockId: BlockId, _bytes: ByteBuffer, level: StorageLevel): PutResult = {
+    MyLog.info("MemoryStore.putBytes: " + blockId + " " + level)
     // Work on a duplicate - since the original input might be used elsewhere.
     val bytes = _bytes.duplicate()
     bytes.rewind()
@@ -145,6 +146,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       values: Iterator[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
+    MyLog.info("MemoryStore.putIterator: " + blockId + " " + level)
     putIterator(blockId, values, level, returnValues, allowPersistToDisk = true)
   }
 
@@ -187,6 +189,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   }
 
   override def getBytes(blockId: BlockId): Option[ByteBuffer] = {
+    MyLog.info("MemoryStore.getBtyes: " + blockId)
     val entry = entries.synchronized {
       entries.get(blockId)
     }
@@ -200,6 +203,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   }
 
   override def getValues(blockId: BlockId): Option[Iterator[Any]] = {
+    MyLog.info("MemoryStore.getValues: " + blockId)
     val entry = entries.synchronized {
       entries.get(blockId)
     }

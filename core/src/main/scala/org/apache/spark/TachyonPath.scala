@@ -16,16 +16,43 @@
  */
 package org.apache.spark
 
+import tachyon.client.file.TachyonFileSystem
+import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+import org.apache.spark.util.Utils
+
 object TachyonPath {
+  val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
+  var folder = ""
+
+  def setFolder(): Unit = {
+    folder = System.getProperty("spark.app.name").split('.').last
+    if (folder.length != 0) {
+      folder += "_"
+    }
+  }
+
   def rddDependency: String = {
-    "/rddDependency"
+    setFolder()
+    "/" + folder + "rddDependency"
   }
 
   def taskDescription: String = {
-    "/taskDescription"
+    setFolder()
+    "/" + folder + "taskDescription"
   }
 
-  def trainingData(storageLevel: String, samplingRate: String): String = {
-    return "/" + storageLevel + "_" + samplingRate
+  def trainingData(): List[String] = {
+    setFolder()
+    Utils.getTachyonPaths(folder)
+  }
+
+  def rddPrediction: String = {
+    setFolder()
+    "/" + folder + "rddPrediction"
+  }
+
+  def executorIdToParDep: String = {
+    setFolder()
+    "/" + folder + "executorIdToParDep"
   }
 }

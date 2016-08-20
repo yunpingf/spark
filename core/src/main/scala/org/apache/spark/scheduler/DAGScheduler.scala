@@ -867,7 +867,8 @@ class DAGScheduler(
       val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
       val stageRdds = stageIds.map(id => (id, stageIdToStage.get(id).map(_.rdd).get)).
         foldLeft(new HashMap[Int, RDD[_]]())((m, item: (Int, RDD[_])) => m += item)
-      listenerBus.post(SparkListenerBuildRddDependency(runMode, samplingRate, storageLevel, stageRdds))
+      listenerBus.post(
+        SparkListenerBuildRddDependency(runMode, samplingRate, storageLevel, stageRdds))
     }
     submitStage(finalStage)
 

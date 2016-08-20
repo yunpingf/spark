@@ -17,6 +17,10 @@
 package org.apache.spark
 import scala.collection.mutable.HashMap
 
-class BlockStats() {
+class BlockStats extends Serializable() {
   val stats = new HashMap[FieldName.Value, Long]
+
+  override def toString: String = {
+    stats.toString()
+  }
 }

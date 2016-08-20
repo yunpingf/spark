@@ -21,7 +21,7 @@ import java.io.{IOException, File, FileOutputStream, RandomAccessFile}
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel.MapMode
 
-import org.apache.spark.Logging
+import org.apache.spark.{MyLog, Logging}
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.Utils
 
@@ -40,6 +40,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
   override def putBytes(blockId: BlockId, _bytes: ByteBuffer, level: StorageLevel): PutResult = {
     // So that we do not modify the input offsets !
     // duplicate does not copy buffer, so inexpensive
+    MyLog.info("DiskStore.putBytes: " + blockId)
     val bytes = _bytes.duplicate()
     logDebug(s"Attempting to put block $blockId")
     val startTime = System.currentTimeMillis
@@ -63,6 +64,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
       values: Array[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
+    MyLog.info("DiskStore.putArray: " + blockId)
     putIterator(blockId, values.toIterator, level, returnValues)
   }
 
@@ -71,7 +73,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
       values: Iterator[Any],
       level: StorageLevel,
       returnValues: Boolean): PutResult = {
-
+    MyLog.info("DiskStore.putIterator: " + blockId)
     logDebug(s"Attempting to write values for block $blockId")
     val startTime = System.currentTimeMillis
     val file = diskManager.getFile(blockId)
