@@ -17,8 +17,12 @@
 
 package org.apache.spark
 
+import org.apache.spark.util.Utils
+import tachyon.client.file.TachyonFileSystem
+import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{HashMap, ArrayBuffer}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage._
@@ -28,9 +32,11 @@ import org.apache.spark.storage._
  * sure a node doesn't load two copies of an RDD at once.
  */
 private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
+  val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
 
   /** Keys of RDD partitions that are being computed/loaded. */
   private val loading = new mutable.HashSet[RDDBlockId]
+  var rddResult: HashMap[BlockId, StorageLevel] = _
 
   /** Gets or computes an RDD partition. Used by RDD.iterator() when an RDD is cached. */
   def getOrCompute[T](
@@ -75,7 +81,25 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           // Otherwise, cache the values and keep track of any updates in block statuses
           val updatedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
-          val cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
+
+          var slevel: StorageLevel = _
+          if (context.runMode().equals(RunMode.FULL)) {
+            rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
+              asInstanceOf[HashMap[BlockId, StorageLevel]]
+            MyLog.info("RDD Result: " + rddResult)
+            println("RDD Result: " + rddResult)
+          }
+          var cachedValues = _
+          if (context.runMode().equals(RunMode.FULL)){
+            if (rddResult.contains(key)) {
+              cachedValues = putInBlockManager(key, computedValues, rddResult(key), updatedBlocks)
+            } else {
+              cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
+            }
+          } else {
+            cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
+          }
+
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
