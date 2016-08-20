@@ -176,6 +176,12 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       for ((id, rdd) <- stageRdds) {
         buildDependency(rdd)
       }
+    } else {
+      val rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
+        asInstanceOf[HashMap[BlockId, StorageLevel]]
+      MyLog.info("RDD Result: " + rddResult)
+      println("RDD Result: " + rddResult)
+
     }
 
     blockManagerMasterEndpoint.askWithRetry[Boolean](HelloMaster("I'm Baymax"))

@@ -55,4 +55,9 @@ object TachyonPath {
     setFolder()
     "/" + folder + "executorIdToParDep"
   }
+
+  def rddResult: String = {
+    setFolder()
+    "/" + folder + "rddResult"
+  }
 }

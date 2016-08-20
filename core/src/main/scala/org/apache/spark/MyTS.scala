@@ -63,6 +63,7 @@ object MyTS {
       val best = tabuSearch.getBestSolution().asInstanceOf[MySolution]
       MyLog.info("Best Solution:\n" + best)
       MyLog.info("The storage level is: " + best.storageLevels)
+      Utils.writeToTachyonFile(TachyonPath.rddResult, best.storageLevels, tfs, true)
     }
 
   }
