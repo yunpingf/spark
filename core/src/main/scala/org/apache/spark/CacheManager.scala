@@ -82,14 +82,13 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           // Otherwise, cache the values and keep track of any updates in block statuses
           val updatedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
 
-          var slevel: StorageLevel = _
           if (context.runMode().equals(RunMode.FULL)) {
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
             MyLog.info("RDD Result: " + rddResult)
             println("RDD Result: " + rddResult)
           }
-          var cachedValues = _
+          var cachedValues: Iterator[T] = null
           if (context.runMode().equals(RunMode.FULL)){
             if (rddResult.contains(key)) {
               cachedValues = putInBlockManager(key, computedValues, rddResult(key), updatedBlocks)
