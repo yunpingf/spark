@@ -44,6 +44,8 @@ object SparkPageRank {
   }
 
   def main(args: Array[String]) {
+    val start = System.currentTimeMillis
+
     if (args.length < 1) {
       System.err.println("Usage: SparkPageRank <file> <iter>")
       System.exit(1)
@@ -75,6 +77,9 @@ object SparkPageRank {
     // output.foreach(tup => println(tup._1 + " has rank: " + tup._2 + "."))
 
     ctx.stop()
+
+    val end = System.currentTimeMillis
+    MyLog.info("Execution Time: " + (end - start))
   }
 }
 // scalastyle:on println

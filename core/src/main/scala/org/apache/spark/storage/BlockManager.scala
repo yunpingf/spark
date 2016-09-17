@@ -22,6 +22,9 @@ import java.lang.management.ManagementFactory
 import java.nio.{ByteBuffer, MappedByteBuffer}
 import java.util.concurrent.ConcurrentHashMap
 
+import tachyon.client.file.TachyonFileSystem
+import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -75,6 +78,7 @@ private[spark] class BlockManager(
     securityManager: SecurityManager,
     numUsableCores: Int)
   extends BlockDataManager with Logging {
+  val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
 
   val diskBlockManager = new DiskBlockManager(this, conf)
 
@@ -846,6 +850,19 @@ private[spark] class BlockManager(
           "\n Disk Size: " + putBlockStatus.diskSize +
         "\n serializeTime: " + putBlockStatus.avgSerializeTime +
         "\n deserializeTime: " + putBlockStatus.avgDeserializeTime)
+//        var broadcastBlocks = Utils.readFromTachyonFile(TachyonPath.broadcastBlock, tfs)
+//        if (broadcastBlocks == null) {
+//          broadcastBlocks = new HashMap[BlockId, BlockStatus]
+//        }
+//        if (blockId.isBroadcast) {
+//          if (broadcastBlocks.asInstanceOf[HashMap[BlockId, BlockStatus]].
+//            contains(blockId)) {
+//            MyLog.info(blockId + " second time")
+//          } else {
+//            broadcastBlocks.asInstanceOf[HashMap[BlockId, BlockStatus]].put(blockId, putBlockStatus)
+//          }
+//          Utils.writeToTachyonFile(TachyonPath.broadcastBlock, broadcastBlocks, tfs, true)
+//        }
 
         if (putBlockStatus.storageLevel != StorageLevel.NONE) {
           // Now that the block is in either the memory, externalBlockStore, or disk store,

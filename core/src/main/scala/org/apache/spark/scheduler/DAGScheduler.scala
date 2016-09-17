@@ -862,6 +862,7 @@ class DAGScheduler(
       SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos, properties))
     // add by yunpingf
     val runMode = properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
+    MyLog.info("Run Mode in DAGScheduler: " + runMode)
     if (runMode == RunMode.TRAINING) {
       val samplingRate = properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE)
       val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
@@ -874,6 +875,8 @@ class DAGScheduler(
 
     submitWaitingStages()
   }
+
+
 
   private[scheduler] def handleMapStageSubmitted(jobId: Int,
       dependency: ShuffleDependency[_, _, _],

@@ -429,6 +429,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       blockId: Option[BlockId],
       space: Long,
       droppedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = {
+    MyLog.info("Space: " + Utils.bytesToString(space))
+    MyLog.info("Max memory: " + Utils.bytesToString(memoryManager.maxStorageMemory))
     assert(space > 0)
     memoryManager.synchronized {
       var freedMemory = 0L

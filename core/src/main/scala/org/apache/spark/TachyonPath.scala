@@ -25,7 +25,8 @@ object TachyonPath {
   var folder = ""
 
   def setFolder(): Unit = {
-    folder = System.getProperty("spark.app.name").split('.').last
+    folder = sys.env.get("APP_NAME").getOrElse("MovieLensALS").split('.').last
+//    folder = System.getProperty("spark.app.name").split('.').last
     if (folder.length != 0) {
       folder += "_"
     }
@@ -34,6 +35,11 @@ object TachyonPath {
   def rddDependency: String = {
     setFolder()
     "/" + folder + "rddDependency"
+  }
+
+  def candidateRdds: String = {
+    setFolder()
+    "/" + folder + "candidateRdds"
   }
 
   def taskDescription: String = {
@@ -47,6 +53,7 @@ object TachyonPath {
   }
 
   def rddPrediction: String = {
+    // From TabuSearch
     setFolder()
     "/" + folder + "rddPrediction"
   }
@@ -57,7 +64,13 @@ object TachyonPath {
   }
 
   def rddResult: String = {
+    // From MyTS
     setFolder()
     "/" + folder + "rddResult"
+  }
+
+  def broadcastBlock: String = {
+    setFolder()
+    "/" + folder + "broadcastBlock"
   }
 }

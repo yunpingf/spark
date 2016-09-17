@@ -109,7 +109,15 @@ object TabuSearch {
       for (i <- 0 to len - 1) {
         regression.addData(x(i), ys(i))
       }
-      regression.predict(1.0).toLong
+      val avgByMe = ys.sum * 5 / ys.size
+      MyLog.info("Average value for prediction: " + avgByMe)
+      val predictVal = regression.predict(1.0).toLong
+      MyLog.info("Regression value for prediction: " + predictVal)
+      if (predictVal < 0) {
+        avgByMe.toLong
+      } else {
+        predictVal
+      }
     }
 
     val res = new HashMap[BlockId, BlockStats]()

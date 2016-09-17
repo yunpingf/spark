@@ -16,14 +16,14 @@
  */
 package org.apache.spark
 
-import org.apache.spark.storage.BlockId
+import org.apache.spark.storage.{StorageLevel, BlockId}
 import org.apache.spark.util.Utils
 import org.coinor.opents.{BestEverAspirationCriteria, SimpleTabuList, SingleThreadedTabuSearch}
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 
 import scala.collection.mutable
-import scala.collection.mutable.{LinkedHashMap, ArrayBuffer, HashMap, HashSet}
+import scala.collection.mutable._
 
 object MyTS {
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
@@ -35,7 +35,7 @@ object MyTS {
       asInstanceOf[LinkedHashMap[String, LinkedHashMap[BlockId, ArrayBuffer[Int]]]]
     MyLog.info("!!!" + executorIdToParDep.toString())
     // GB to byte
-    val executorMemory: Long = 1 * 1024 * 1024 * 1024;
+    val executorMemory: Long = (1 * 1024 * 1024 * 1024 * 0.75 * 0.5).toLong;
     for ((executorId, blockIdToStages) <- executorIdToParDep) {
       MyLog.info("ExecutorId in Tabu Search: " + executorId)
       // Candidate blocks on this executor
@@ -63,7 +63,14 @@ object MyTS {
       val best = tabuSearch.getBestSolution().asInstanceOf[MySolution]
       MyLog.info("Best Solution:\n" + best)
       MyLog.info("The storage level is: " + best.storageLevels)
-      Utils.writeToTachyonFile(TachyonPath.rddResult, best.storageLevels, tfs, true)
+      var rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs)
+      if (rddResult == null) {
+        rddResult = new HashMap[BlockId, StorageLevel]()
+      }
+      for (elem <- best.storageLevels) {
+        rddResult.asInstanceOf[HashMap[BlockId, StorageLevel]].put(elem._1, elem._2)
+      }
+      Utils.writeToTachyonFile(TachyonPath.rddResult, rddResult, tfs, true)
     }
 
   }

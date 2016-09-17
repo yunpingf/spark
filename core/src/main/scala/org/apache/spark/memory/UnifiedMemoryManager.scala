@@ -17,9 +17,11 @@
 
 package org.apache.spark.memory
 
+import org.apache.spark.util.Utils
+
 import scala.collection.mutable
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{MyLog, SparkConf}
 import org.apache.spark.storage.{BlockStatus, BlockId}
 
 /**

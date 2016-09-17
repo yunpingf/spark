@@ -45,6 +45,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       context: TaskContext,
       storageLevel: StorageLevel): Iterator[T] = {
     val key = RDDBlockId(rdd.id, partition.index)
+    val myKey = RDDBlockId(rdd.id + 1, partition.index)
     logDebug(s"Looking for partition $key")
     blockManager.get(key) match {
       case Some(blockResult) =>
@@ -86,12 +87,12 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
             MyLog.info("RDD Result: " + rddResult)
-            println("RDD Result: " + rddResult)
           }
           var cachedValues: Iterator[T] = null
           if (context.runMode().equals(RunMode.FULL)){
-            if (rddResult.contains(key)) {
-              cachedValues = putInBlockManager(key, computedValues, rddResult(key), updatedBlocks)
+            if (rddResult.contains(myKey)) {
+              MyLog.info("Find tachyon result for " + myKey)
+              cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
             } else {
               cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
             }

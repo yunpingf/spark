@@ -20,6 +20,8 @@ package org.apache.spark.executor
 import java.io.{IOException, ObjectInputStream}
 import java.util.concurrent.ConcurrentHashMap
 
+import org.apache.spark.MyLog
+
 import scala.collection.mutable
 import scala.collection.mutable.{HashSet, ArrayBuffer, HashMap, ListBuffer}
 

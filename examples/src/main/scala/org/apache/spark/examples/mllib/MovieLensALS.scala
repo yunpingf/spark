@@ -105,7 +105,7 @@ object MovieLensALS {
     }
     val sc = new SparkContext(conf)
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    Logger.getRootLogger.setLevel(Level.INFO)
 
     val implicitPrefs = params.implicitPrefs
 
@@ -171,8 +171,9 @@ object MovieLensALS {
     val rmse = computeRmse(model, test, params.implicitPrefs)
 
     println(s"Test RMSE = $rmse.")
-
+    println("Finished")
     sc.stop()
+    println("Why not finished")
   }
 
   /** Compute RMSE (Root Mean Squared Error). */
