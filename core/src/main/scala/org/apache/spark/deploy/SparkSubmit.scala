@@ -112,6 +112,7 @@ object SparkSubmit {
   // scalastyle:on println
 
   def main(args: Array[String]): Unit = {
+    MyLog.info("SparkSubmit: " + args.deep.toString())
     val appArgs = new SparkSubmitArguments(args)
     if (appArgs.verbose) {
       // scalastyle:off println
@@ -219,6 +220,7 @@ object SparkSubmit {
    */
   private[deploy] def prepareSubmitEnvironment(args: SparkSubmitArguments)
       : (Seq[String], Seq[String], Map[String, String], String) = {
+    MyLog.info("PrepareSubmitEnvironment: " + args)
     // Return values
     val childArgs = new ArrayBuffer[String]()
     val childClasspath = new ArrayBuffer[String]()

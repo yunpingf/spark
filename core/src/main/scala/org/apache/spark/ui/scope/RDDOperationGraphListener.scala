@@ -19,7 +19,7 @@ package org.apache.spark.ui.scope
 
 import scala.collection.mutable
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{MyLog, SparkConf}
 import org.apache.spark.scheduler._
 import org.apache.spark.ui.SparkUI
 
@@ -46,7 +46,7 @@ private[ui] class RDDOperationGraphListener(conf: SparkConf) extends SparkListen
     conf.getInt("spark.ui.retainedJobs", SparkUI.DEFAULT_RETAINED_JOBS)
   private val retainedStages =
     conf.getInt("spark.ui.retainedStages", SparkUI.DEFAULT_RETAINED_STAGES)
-
+  private val stageIdToGraphClusters = new mutable.HashMap[Int, Int]()
   /**
    * Return the graph metadata for all stages in the given job.
    * An empty list is returned if one or more of its stages has been cleaned up.
@@ -75,6 +75,7 @@ private[ui] class RDDOperationGraphListener(conf: SparkConf) extends SparkListen
   override def onJobStart(jobStart: SparkListenerJobStart): Unit = synchronized {
     val jobId = jobStart.jobId
     val stageInfos = jobStart.stageInfos
+    MyLog.graphInfo("Job " + jobId + " started")
 
     jobIds += jobId
     jobIdToStageIds(jobId) = jobStart.stageInfos.map(_.stageId).sorted
@@ -84,6 +85,11 @@ private[ui] class RDDOperationGraphListener(conf: SparkConf) extends SparkListen
       stageIds += stageId
       stageIdToJobId(stageId) = jobId
       stageIdToGraph(stageId) = RDDOperationGraph.makeOperationGraph(stageInfo)
+      val g = stageIdToGraph(stageId)
+      MyLog.graphInfo("Graph for this Stage: " + "stageId: " +
+        stageId + " Num of Edges: " + g.edges.size
+        + " Num of clusters: " + g.rootCluster.childClusters.size)
+      stageIdToGraphClusters.put(stageId, g.rootCluster.childClusters.size)
       trimStagesIfNecessary()
     }
 
@@ -109,6 +115,10 @@ private[ui] class RDDOperationGraphListener(conf: SparkConf) extends SparkListen
       // Otherwise, we may never clean this job from `jobIdToSkippedStageIds`
       jobIdToSkippedStageIds(jobId) = skippedStageIds
     }
+  }
+
+  override  def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    MyLog.graphInfo("StageId to Num of clusters: " + stageIdToGraphClusters)
   }
 
   /** Clean metadata for old stages if we have exceeded the number to retain. */

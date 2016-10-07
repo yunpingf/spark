@@ -1720,6 +1720,19 @@ private[spark] object Utils extends Logging {
     res
   }
 
+  def computeRddTime2[U](f: () => Iterator[U], context: TaskContext,
+                        rddId: Int, splitIndex: Int): Iterator[U] = {
+    val startTime = System.currentTimeMillis()
+    val startCpuTime = Utils.computeTotalCPUTime()
+    val res: Iterator[U] = f()
+    val endTime = System.currentTimeMillis()
+    val endCpuTime = Utils.computeTotalCPUTime()
+    context.taskMetrics().
+      addRddComputeTime(RDDBlockId(rddId, splitIndex),
+        (endCpuTime - startCpuTime), (endTime - startTime))
+    res
+  }
+
   /**
    * Counts the number of elements of an iterator using a while loop rather than calling
    * [[scala.collection.Iterator#size]] because it uses a for loop, which is slightly slower

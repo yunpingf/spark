@@ -862,7 +862,6 @@ class DAGScheduler(
       SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos, properties))
     // add by yunpingf
     val runMode = properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
-    MyLog.info("Run Mode in DAGScheduler: " + runMode)
     if (runMode == RunMode.TRAINING) {
       val samplingRate = properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE)
       val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
@@ -932,7 +931,7 @@ class DAGScheduler(
         val missing = getMissingParentStages(stage).sortBy(_.id)
         logDebug("missing: " + missing)
         if (missing.isEmpty) {
-          logWarning("Stage ID: " + stage.id + " Stage RDD ID: " + stage.rdd.id)
+          println("Stage ID: " + stage.id + " Stage RDD ID: " + stage.rdd.id)
           logInfo("Submitting " + stage + " (" + stage.rdd + "), which has no missing parents")
           submitMissingTasks(stage, jobId.get)
         } else {
@@ -998,6 +997,10 @@ class DAGScheduler(
         runningStages -= stage
         return
     }
+
+    MyLog.info("Stage ID: " + stage.id)
+    MyLog.info("Task Locations: " + taskIdToLocations)
+
 
     stage.makeNewStageAttempt(partitionsToCompute.size, taskIdToLocations.values.toSeq)
     listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo, properties))

@@ -89,17 +89,14 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             MyLog.info("RDD Result: " + rddResult)
           }
           var cachedValues: Iterator[T] = null
-          if (context.runMode().equals(RunMode.FULL)){
-            if (rddResult.contains(myKey)) {
-              MyLog.info("Find tachyon result for " + myKey)
-              cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
-            } else {
-              cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
-            }
+          if (context.runMode().equals(RunMode.FULL) && rddResult != null
+            && rddResult.contains(myKey)){
+            MyLog.info("Find tachyon result for " + myKey)
+            cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
           } else {
+            MyLog.info(key + " persist 2 " + storageLevel +" in Cache Manager")
             cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
           }
-
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)

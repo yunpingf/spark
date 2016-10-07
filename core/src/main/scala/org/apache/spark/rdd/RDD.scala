@@ -157,6 +157,7 @@ abstract class RDD[T: ClassTag](
   def persist(newLevel: StorageLevel, allowOverride: Boolean): this.type = {
     // TODO: Handle changes of StorageLevel
     if (storageLevel != StorageLevel.NONE && newLevel != storageLevel && !allowOverride) {
+      MyLog.info("RDD ID: " + this.id + " Level: " + storageLevel + "->" + newLevel)
       throw new UnsupportedOperationException(
         "Cannot change storage level of an RDD after it was already assigned a level")
     }

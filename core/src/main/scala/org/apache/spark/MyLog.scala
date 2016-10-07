@@ -22,6 +22,9 @@ object MyLog extends Logging{
   def info(s: String): Unit = {
     logInfo("\n" + s + "\n");
   }
+  def graphInfo(s: String): Unit = {
+    logInfo("==============Graph===============\n" + s + "\n");
+  }
   def debug(s: String): Unit = {
     logDebug("\n" + s + "\n");
   }

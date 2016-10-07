@@ -397,7 +397,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
           entries.put(blockId, entry)
         }
         val valuesOrBytes = if (deserialized) "values" else "bytes"
-        logInfo("Block %s stored as %s in memory (estimated size %s, free %s)".format(
+        logInfo("Block %s stored as %s in memory (estimated size %s, memory used %s)".format(
           blockId, valuesOrBytes, Utils.bytesToString(size), Utils.bytesToString(blocksMemoryUsed)))
       } else {
         // Tell the block manager that we couldn't put it in memory so that it can drop it to

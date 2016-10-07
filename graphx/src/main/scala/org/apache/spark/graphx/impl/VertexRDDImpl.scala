@@ -67,7 +67,10 @@ class VertexRDDImpl[VD] private[graphx] (
 
   /** Persists the vertex partitions at `targetStorageLevel`, which defaults to MEMORY_ONLY. */
   override def cache(): this.type = {
-    partitionsRDD.persist(targetStorageLevel)
+    if (partitionsRDD.getStorageLevel == StorageLevel.NONE){
+      MyLog.info("Persist vertex to " + targetStorageLevel)
+      partitionsRDD.persist(targetStorageLevel)
+    }
     this
   }
 

@@ -29,7 +29,7 @@ object MyTS {
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
 
   def main(args: Array[String]): Unit = {
-    System.setProperty("spark.app.name", "org.apache.spark.examples.MovieLensALS")
+    System.setProperty("spark.app.name", "org.apache.spark.examples.graphx.LiveJournalPageRank")
     // HashMap[String, LinkedHashMap[BlockId, HashSet[Int]]]
     val executorIdToParDep = Utils.readFromTachyonFile(TachyonPath.executorIdToParDep, tfs).
       asInstanceOf[LinkedHashMap[String, LinkedHashMap[BlockId, ArrayBuffer[Int]]]]

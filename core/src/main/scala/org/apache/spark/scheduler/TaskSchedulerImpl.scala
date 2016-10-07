@@ -18,6 +18,7 @@
 package org.apache.spark.scheduler
 
 import java.nio.ByteBuffer
+import java.util
 import java.util.{TimerTask, Timer}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -28,6 +29,8 @@ import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
+import scala.collection.mutable.LinkedHashMap
+import scala.collection.mutable.LinkedList
 import scala.language.postfixOps
 import scala.util.Random
 
@@ -93,8 +96,8 @@ private[spark] class TaskSchedulerImpl(
   // Number of tasks running on each executor
   private val executorIdToTaskCount = new HashMap[String, Int]
 
-  private val executorIdToTasks = new HashMap[String, ArrayBuffer[Task[_]]];
-  def getExecutorIdToTasks(): HashMap[String, ArrayBuffer[Task[_]]] = {
+  private val executorIdToTasks = new LinkedHashMap[String, LinkedList[Task[_]]];
+  def getExecutorIdToTasks(): LinkedHashMap[String, LinkedList[Task[_]]] = {
     executorIdToTasks
   }
   // The set of executors we have on each host; this is used to compute hostsAlive, which
@@ -265,8 +268,9 @@ private[spark] class TaskSchedulerImpl(
             executorsByHost(host) += execId
 
             if (sc.getRunMode() == RunMode.TRAINING) {
-              executorIdToTasks.getOrElseUpdate(execId, new ArrayBuffer[Task[_]]()) +=
-                taskSet.taskSet.tasks(task.index)
+              var l = executorIdToTasks.getOrElseUpdate(execId, new LinkedList[Task[_]]())
+              l = l :+(taskSet.taskSet.tasks(task.index))
+              executorIdToTasks.update(execId, l)
             }
 
             availableCpus(i) -= CPUS_PER_TASK
@@ -312,6 +316,7 @@ private[spark] class TaskSchedulerImpl(
     // always get the same shuffled offers when the offers are the same
     val seed = offers.hashCode()
     val shuffledOffers = new Random(seed).shuffle(offers)
+
     // Build a list of tasks to assign to each worker.
     val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores))
     val availableCpus = shuffledOffers.map(o => o.cores).toArray
@@ -342,7 +347,6 @@ private[spark] class TaskSchedulerImpl(
 
       }
     }
-    // MyLog.info("Task Descriptions: " + tasks);
     return tasks
   }
 

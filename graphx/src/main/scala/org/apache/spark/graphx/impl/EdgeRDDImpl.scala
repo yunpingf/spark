@@ -19,7 +19,7 @@ package org.apache.spark.graphx.impl
 
 import scala.reflect.{classTag, ClassTag}
 
-import org.apache.spark.{OneToOneDependency, HashPartitioner}
+import org.apache.spark.{MyLog, OneToOneDependency, HashPartitioner}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
@@ -66,6 +66,7 @@ class EdgeRDDImpl[ED: ClassTag, VD: ClassTag] private[graphx] (
 
   /** Persists the edge partitions using `targetStorageLevel`, which defaults to MEMORY_ONLY. */
   override def cache(): this.type = {
+    MyLog.info("Persist edge to " + targetStorageLevel)
     partitionsRDD.persist(targetStorageLevel)
     this
   }

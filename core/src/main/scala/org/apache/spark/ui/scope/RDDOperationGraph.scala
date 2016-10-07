@@ -24,7 +24,7 @@ import scala.collection.mutable.{StringBuilder, ListBuffer}
 
 import org.apache.commons.lang3.StringEscapeUtils
 
-import org.apache.spark.Logging
+import org.apache.spark.{MyLog, Logging}
 import org.apache.spark.scheduler.StageInfo
 import org.apache.spark.storage.StorageLevel
 
@@ -90,12 +90,20 @@ private[ui] class RDDOperationCluster(val id: String, private var _name: String)
     val state = Seq(_childClusters, id, _name)
     state.map(Objects.hashCode).foldLeft(0)((a, b) => 31 * a + b)
   }
+
+//  override def toString(): String = {
+//    MyLog.graphInfo("ChildNodes Length: " + childNodes.length +
+//      "ChildCluster Length: " + childClusters.length)
+//    val str = "ChildNodes: " + childNodes.map(node => node.toString).mkString("\n%%%") +
+//      "ChildCluster==" + childClusters.map(cluster => cluster.toString()).mkString("\n\n###")
+//    MyLog.info(str)
+//    ""
+//  }
 }
 
 private[ui] object RDDOperationGraph extends Logging {
 
   val STAGE_CLUSTER_PREFIX = "stage_"
-
   /**
    * Construct a RDDOperationGraph for a given stage.
    *
@@ -108,6 +116,7 @@ private[ui] object RDDOperationGraph extends Logging {
    * a common scope (e.g. part of a SQL query).
    */
   def makeOperationGraph(stage: StageInfo): RDDOperationGraph = {
+    MyLog.graphInfo("Stage Id: " + stage.stageId)
     val edges = new ListBuffer[RDDOperationEdge]
     val nodes = new mutable.HashMap[Int, RDDOperationNode]
     val clusters = new mutable.HashMap[String, RDDOperationCluster] // indexed by cluster ID
@@ -118,11 +127,9 @@ private[ui] object RDDOperationGraph extends Logging {
     val stageClusterName = s"Stage ${stage.stageId}" +
       { if (stage.attemptId == 0) "" else s" (attempt ${stage.attemptId})" }
     val rootCluster = new RDDOperationCluster(stageClusterId, stageClusterName)
-
     // Find nodes, edges, and operation scopes that belong to this stage
     stage.rddInfos.foreach { rdd =>
       edges ++= rdd.parentIds.map { parentId => RDDOperationEdge(parentId, rdd.id) }
-
       // TODO: differentiate between the intention to cache an RDD and whether it's actually cached
       val node = nodes.getOrElseUpdate(rdd.id, RDDOperationNode(
         rdd.id, rdd.name, rdd.storageLevel != StorageLevel.NONE, rdd.callSite))
@@ -170,7 +177,6 @@ private[ui] object RDDOperationGraph extends Logging {
         case _ => logWarning(s"Found an orphan edge in stage ${stage.stageId}: $e")
       }
     }
-
     RDDOperationGraph(internalEdges, outgoingEdges, incomingEdges, rootCluster)
   }
 

@@ -31,6 +31,7 @@ import org.apache.spark.graphx.PartitionStrategy._
 object Analytics extends Logging {
 
   def main(args: Array[String]): Unit = {
+    println(args.deep.toString() + " in Analytics")
     if (args.length < 2) {
       System.err.println(
         "Usage: Analytics <taskType> <file> --numEPart=<num_edge_partitions> [other options]")
@@ -49,8 +50,9 @@ object Analytics extends Logging {
         case _ => throw new IllegalArgumentException("Invalid argument: " + arg)
       }
     }
+    println("optionsList: " + optionsList)
     val options = mutable.Map(optionsList: _*)
-
+    println("options: " + options)
     val conf = new SparkConf()
     GraphXUtils.registerKryoClasses(conf)
 
@@ -101,9 +103,9 @@ object Analytics extends Logging {
           logWarning("Saving pageranks of pages to " + outFname)
           pr.map { case (id, r) => id + "\t" + r }.saveAsTextFile(outFname)
         }
-
+        MyLog.info("SC is about to close")
         sc.stop()
-
+//
       case "cc" =>
         options.foreach {
           case (opt, _) => throw new IllegalArgumentException("Invalid option: " + opt)

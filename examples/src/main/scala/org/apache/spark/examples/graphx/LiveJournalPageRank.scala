@@ -19,6 +19,7 @@
 package org.apache.spark.examples.graphx
 
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.MyLog
 
 /**
  * Uses GraphX to run PageRank on a LiveJournal social network graph. Download the dataset from
@@ -26,7 +27,8 @@ import org.apache.log4j.{Level, Logger}
  */
 object LiveJournalPageRank {
   def main(args: Array[String]) {
-    Logger.getRootLogger.setLevel(Level.WARN)
+    val start = System.currentTimeMillis
+    Logger.getRootLogger.setLevel(Level.INFO)
     if (args.length < 1) {
       System.err.println(
         "Usage: LiveJournalPageRank <edge_list_file>\n" +
@@ -43,7 +45,10 @@ object LiveJournalPageRank {
       System.exit(-1)
     }
 
+    println(args.deep.toString() + "in Live Journal")
     Analytics.main(args.patch(0, List("pagerank"), 0))
+    val end = System.currentTimeMillis
+    MyLog.info("Execution Time: " + (end - start))
   }
 }
 // scalastyle:on println

@@ -23,7 +23,7 @@ import scala.collection.mutable
 import org.apache.log4j.{Level, Logger}
 import scopt.OptionParser
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{MyLog, SparkConf, SparkContext}
 import org.apache.spark.SparkContext._
 import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rating}
 import org.apache.spark.rdd.RDD
@@ -50,6 +50,9 @@ object MovieLensALS {
       implicitPrefs: Boolean = false) extends AbstractParams[Params]
 
   def main(args: Array[String]) {
+    val start = System.currentTimeMillis
+    MyLog.info("My Start Time: " + start)
+
     val defaultParams = Params()
 
     val parser = new OptionParser[Params]("MovieLensALS") {
@@ -95,6 +98,10 @@ object MovieLensALS {
     } getOrElse {
       System.exit(1)
     }
+
+    val end = System.currentTimeMillis
+    MyLog.info("My End Time: " + end)
+    MyLog.info("Execution Time: " + (end - start))
   }
 
   def run(params: Params) {
