@@ -88,7 +88,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           if (context.runMode().equals(RunMode.FULL)) {
 
             val tconf = new TachyonConf()
-            tconf.set("tachyon.master.hostname", "ec2-52-198-152-7.ap-northeast-1.compute.amazonaws.com")
+            tconf.set("tachyon.master.hostname", "ip-172-31-24-220.ap-northeast-1.compute.internal")
             tconf.set("tachyon.master.port", "19998")
             ClientContext.reset(tconf)
 
