@@ -20,6 +20,8 @@ package org.apache.spark
 import org.apache.spark.util.Utils
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+import tachyon.conf.TachyonConf
+import tachyon.client.ClientContext
 
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap, ArrayBuffer}
@@ -84,6 +86,12 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val updatedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
 
           if (context.runMode().equals(RunMode.FULL)) {
+
+            val tconf = new TachyonConf()
+            tconf.set("tachyon.master.hostname", "ec2-52-198-198-33.ap-northeast-1.compute.amazonaws.com")
+            tconf.set("tachyon.master.port", "19998")
+            ClientContext.reset(tconf)
+
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
             MyLog.info("RDD Result: " + rddResult)
