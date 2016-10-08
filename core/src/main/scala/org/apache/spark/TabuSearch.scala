@@ -194,8 +194,7 @@ object TabuSearch {
   }
 
   def main(args: Array[String]): Unit = {
-    System.setProperty("spark.app.name", "org.apache.spark.examples.graphx.LiveJournalPageRank")
-   this.linearRegression()
+    this.linearRegression()
 //    this.cleanFS()
   }
 }
