@@ -67,6 +67,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
   }
 
   override def maxStorageMemory: Long = synchronized {
+    MyLog.info("Max Memory=" + maxMemory + " "
+      + "Memory Used: " + onHeapExecutionMemoryPool.memoryUsed)
     maxMemory - onHeapExecutionMemoryPool.memoryUsed
   }
 
@@ -97,6 +99,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
          */
         def maybeGrowExecutionPool(extraMemoryNeeded: Long): Unit = {
           if (extraMemoryNeeded > 0) {
+            MyLog.info("ExtraMemoryNeeded: " + extraMemoryNeeded)
             // There is not enough free memory in the execution pool, so try to reclaim memory from
             // storage. We can reclaim any free memory from the storage pool. If the storage pool
             // has grown to become larger than `storageRegionSize`, we can evict blocks and reclaim
@@ -107,6 +110,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
               // Only reclaim as much space as is necessary and available:
               val spaceToReclaim = storageMemoryPool.freeSpaceToShrinkPool(
                 math.min(extraMemoryNeeded, memoryReclaimableFromStorage))
+              MyLog.info("Memory to reclaim: " + spaceToReclaim)
               storageMemoryPool.decrementPoolSize(spaceToReclaim)
               onHeapExecutionMemoryPool.incrementPoolSize(spaceToReclaim)
             }
@@ -202,6 +206,8 @@ object UnifiedMemoryManager {
     }
     val usableMemory = systemMemory - reservedMemory
     val memoryFraction = conf.getDouble("spark.memory.fraction", 0.75)
+    MyLog.info("Usable Memory: " + usableMemory)
+    MyLog.info("Memory Fraction: " + memoryFraction)
     (usableMemory * memoryFraction).toLong
   }
 }
