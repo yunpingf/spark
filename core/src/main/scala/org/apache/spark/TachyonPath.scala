@@ -25,11 +25,7 @@ object TachyonPath {
   var folder = ""
 
   def setFolder(): Unit = {
-    var app = sys.props("app.name")
-    if (app == null) {
-      app = sys.env.get("APP_NAME").getOrElse("LiveJournalPageRank")
-    }
-    folder = app.split('.').last
+    folder = sys.env.get("APP_NAME").getOrElse("SparkPageRank").split('.').last
 //    folder = System.getProperty("spark.app.name").split('.').last
     if (folder.length != 0) {
       folder += "_"
