@@ -26,7 +26,7 @@ object TachyonPath {
 
   def setFolder(): Unit = {
     var app = sys.props("app.name")
-    if (app.isEmpty) {
+    if (app == null) {
       app = sys.env.get("APP_NAME").getOrElse("LiveJournalPageRank")
     }
     folder = app.split('.').last
