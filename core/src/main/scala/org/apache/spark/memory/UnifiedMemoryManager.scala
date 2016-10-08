@@ -206,7 +206,9 @@ object UnifiedMemoryManager {
     }
     val usableMemory = systemMemory - reservedMemory
     val memoryFraction = conf.getDouble("spark.memory.fraction", 0.75)
-    MyLog.info("Usable Memory: " + usableMemory)
+    MyLog.info("ReservedMemory: " + Utils.bytesToString(reservedMemory))
+    MyLog.info("System Memory: " + Utils.bytesToString(systemMemory))
+    MyLog.info("Usable Memory: " + Utils.bytesToString(usableMemory))
     MyLog.info("Memory Fraction: " + memoryFraction)
     (usableMemory * memoryFraction).toLong
   }
