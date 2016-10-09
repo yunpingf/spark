@@ -68,7 +68,7 @@ private[spark] class UnifiedMemoryManager private[memory] (
 
   override def maxStorageMemory: Long = synchronized {
     MyLog.info("Max Memory=" + Utils.bytesToString(maxMemory) + " "
-      + "Memory Used: " + Utils.bytesToString(onHeapExecutionMemoryPool.memoryUsed))
+      + "Execution Memory Used: " + Utils.bytesToString(onHeapExecutionMemoryPool.memoryUsed))
     maxMemory - onHeapExecutionMemoryPool.memoryUsed
   }
 
