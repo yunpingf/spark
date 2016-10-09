@@ -117,7 +117,7 @@ object MovieLensALS {
     val implicitPrefs = params.implicitPrefs
 
     val ratings = sc.textFile(params.input).map { line =>
-      val fields = line.split("\\s+")
+      val fields = line.split("\\:")
       if (implicitPrefs) {
         /*
          * MovieLens ratings are on a scale of 1-5:
