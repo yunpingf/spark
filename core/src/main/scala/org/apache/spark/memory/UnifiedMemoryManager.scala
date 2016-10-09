@@ -67,8 +67,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
   }
 
   override def maxStorageMemory: Long = synchronized {
-    MyLog.info("Max Memory=" + maxMemory + " "
-      + "Memory Used: " + onHeapExecutionMemoryPool.memoryUsed)
+    MyLog.info("Max Memory=" + Utils.bytesToString(maxMemory) + " "
+      + "Memory Used: " + Utils.bytesToString(onHeapExecutionMemoryPool.memoryUsed))
     maxMemory - onHeapExecutionMemoryPool.memoryUsed
   }
 
@@ -99,18 +99,22 @@ private[spark] class UnifiedMemoryManager private[memory] (
          */
         def maybeGrowExecutionPool(extraMemoryNeeded: Long): Unit = {
           if (extraMemoryNeeded > 0) {
-            MyLog.info("ExtraMemoryNeeded: " + extraMemoryNeeded)
+            MyLog.info("ExtraMemoryNeeded: " + Utils.bytesToString(extraMemoryNeeded))
             // There is not enough free memory in the execution pool, so try to reclaim memory from
             // storage. We can reclaim any free memory from the storage pool. If the storage pool
             // has grown to become larger than `storageRegionSize`, we can evict blocks and reclaim
             // the memory that storage has borrowed from execution.
+            MyLog.info("Current free storage: " + Utils.bytesToString(storageMemoryPool.memoryFree))
+            MyLog.info("Storage Memory Pool size: " +
+              Utils.bytesToString(storageMemoryPool.poolSize))
+            MyLog.info("StorageRegion: " + Utils.bytesToString(storageRegionSize))
             val memoryReclaimableFromStorage =
               math.max(storageMemoryPool.memoryFree, storageMemoryPool.poolSize - storageRegionSize)
             if (memoryReclaimableFromStorage > 0) {
               // Only reclaim as much space as is necessary and available:
               val spaceToReclaim = storageMemoryPool.freeSpaceToShrinkPool(
                 math.min(extraMemoryNeeded, memoryReclaimableFromStorage))
-              MyLog.info("Memory to reclaim: " + spaceToReclaim)
+              MyLog.info("Memory to reclaim: " + Utils.bytesToString(spaceToReclaim))
               storageMemoryPool.decrementPoolSize(spaceToReclaim)
               onHeapExecutionMemoryPool.incrementPoolSize(spaceToReclaim)
             }
@@ -160,6 +164,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
       // There is not enough free memory in the storage pool, so try to borrow free memory from
       // the execution pool.
       val memoryBorrowedFromExecution = Math.min(onHeapExecutionMemoryPool.memoryFree, numBytes)
+      MyLog.info("Memory borrow from Execution: " +
+        Utils.bytesToString(memoryBorrowedFromExecution))
       onHeapExecutionMemoryPool.decrementPoolSize(memoryBorrowedFromExecution)
       storageMemoryPool.incrementPoolSize(memoryBorrowedFromExecution)
     }
