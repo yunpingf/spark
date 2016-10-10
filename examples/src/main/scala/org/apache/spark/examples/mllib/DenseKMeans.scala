@@ -19,11 +19,13 @@
 package org.apache.spark.examples.mllib
 
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.rdd.RDD
 import scopt.OptionParser
 
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.clustering.KMeans
 import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.Vector
 
 /**
  * An example k-means app. Run with
@@ -80,11 +82,23 @@ object DenseKMeans {
     val conf = new SparkConf().setAppName(s"DenseKMeans with $params")
     val sc = new SparkContext(conf)
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    Logger.getRootLogger.setLevel(Level.INFO)
 
-    val examples = sc.textFile(params.input).map { line =>
-      Vectors.dense(line.split(' ').map(_.toDouble))
-    }.cache()
+    var examples: RDD[Vector] = null
+    if (params.input.contains("3D")) {
+      examples = sc.textFile(params.input).filter(line => !line.contains("?")).
+        map { line => Vectors.dense(line.split(' ').tail.map(_.toDouble))
+      }.cache()
+    }
+    else if (params.input.contains("household")){
+      examples = sc.textFile(params.input).filter(line => !line.contains("?"))
+        .map { line => Vectors.dense(line.split(';').drop(2).map(_.toDouble))
+      }.cache()
+    } else {
+      examples = sc.textFile(params.input).map { line =>
+        Vectors.dense(line.split(' ').map(_.toDouble))
+      }.cache()
+    }
 
     val numExamples = examples.count()
 
