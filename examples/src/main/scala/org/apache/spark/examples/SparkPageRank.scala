@@ -20,7 +20,7 @@ package org.apache.spark.examples
 
 import org.apache.spark.SparkContext._
 import org.apache.spark.{MyLog, SparkConf, SparkContext}
-
+import org.apache.spark.util.Utils
 /**
  * Computes the PageRank of URLs from an input file. Input file should
  * be in format of:
@@ -45,6 +45,7 @@ object SparkPageRank {
 
   def main(args: Array[String]) {
     val start = System.currentTimeMillis
+    val startCPuTime = Utils.computeTotalCPUTime()
 
     if (args.length < 1) {
       System.err.println("Usage: SparkPageRank <file> <iter>")
@@ -79,7 +80,9 @@ object SparkPageRank {
     ctx.stop()
 
     val end = System.currentTimeMillis
+    val endCPU = Utils.computeTotalCPUTime()
     MyLog.info("Execution Time: " + (end - start))
+    MyLog.info("Execution CPU Time: " + (endCPU - startCPuTime))
   }
 }
 // scalastyle:on println

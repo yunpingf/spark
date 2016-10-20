@@ -22,15 +22,17 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark._
 import org.apache.spark.rpc.RpcEndpointRef
-import org.apache.spark.storage.BlockManagerMessages.HelloMaster
-import org.apache.spark.storage.{RDDBlockId, BlockId, StorageLevel, BlockStatus}
-import org.apache.spark.util.{SizeEstimator, Utils}
+import org.apache.spark.storage.BlockManagerMessages.{GetBlockStatus, HelloMaster}
+import org.apache.spark.storage._
+import org.apache.spark.util.{RpcUtils, ThreadUtils, SizeEstimator, Utils}
 import tachyon.TachyonURI
 import tachyon.client.file.options.{GetInfoOptions, InStreamOptions, OutStreamOptions}
 import tachyon.client.file.{FileInStream, TachyonFile, FileOutStream, TachyonFileSystem}
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
+import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap}
-import scala.collection.immutable
+import scala.collection.{Iterable, immutable}
+import scala.concurrent.Future
 
 // scalastyle:off println
 class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoint: RpcEndpointRef)
@@ -56,6 +58,47 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
     MyLog.info("The application is about to end")
+    for (rdd <- candidateRDDs) {
+      MyLog.info("Rdd: " + rdd)
+      val partitions = rdd.partitions
+      for (p <- partitions) {
+        MyLog.info("Partitions: " + p)
+        val blockId = new RDDBlockId(rdd.id, p.index)
+        val msg = GetBlockStatus(blockId, true)
+        val response = blockManagerMasterEndpoint.
+          askWithRetry[Map[BlockManagerId, Future[Option[BlockStatus]]]](msg)
+        val (blockManagerIds, futures) = response.unzip
+        MyLog.info(blockManagerIds.toString())
+        MyLog.info(futures.toString())
+        implicit val sameThread = ThreadUtils.sameThread
+        val cbf =
+          implicitly[
+            CanBuildFrom[Iterable[Future[Option[BlockStatus]]],
+              Option[BlockStatus],
+              Iterable[Option[BlockStatus]]]]
+        val timeout = RpcUtils.askRpcTimeout(sc.conf)
+        MyLog.info("!!!!!!!!!$$$$$")
+        val blockStatus = timeout.awaitResult(
+          Future.sequence[Option[BlockStatus], Iterable](futures)(cbf, ThreadUtils.sameThread))
+        MyLog.info("BlockId= " + blockId + " " + blockStatus.toString())
+        if (blockStatus == null) {
+          throw new SparkException("BlockManager returned null for BlockStatus query: " + blockId)
+        }
+        MyLog.info("No Exception")
+        val status = blockManagerIds.zip(blockStatus).flatMap { case (blockManagerId, status) =>
+          status.map { s => (blockManagerId, s) }
+        }.toMap
+        MyLog.info("Status: " + status)
+        for ((blockManagerId, blockStatus) <- status) {
+          MyLog.info("BlockManagerId: " + blockManagerId)
+          MyLog.info("BlockStatus: " + blockStatus)
+        }
+      }
+    }
+
+
+
+    
     if (runMode == RunMode.TRAINING && !Utils.tachyonFileExist(TachyonPath.candidateRdds, tfs)){
       MyLog.info("About to write dep")
       println("About to write dep")
@@ -119,12 +162,9 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       MyLog.info("Stage RDDs: " + stageRdds.map(p => (p._1, p._2.id)))
       MyLog.info("Candidate RDDs: " + candidateRDDs.map(p => p.id))
       MyLog.info("ExecutorIdToParDep: " + executorIdToParDep.toString())
-      for((k, v) <- executorIdToParDep) {
-        MyLog.info("Key: " + k + " size = " + v.size)
-      }
+
 
       MyLog.info("Block Stats: " + blockStats.toString())
-      MyLog.info("Block Stats Size: " + blockStats.get(storageLevel).get.size)
 
       val filteredRddDep = rddToChildren.filter((p: (RDD[_], HashSet[RDD[_]])) => p._2.size > 1)
       MyLog.info("rddToChildren: " + rddToChildren.map((p: (RDD[_], HashSet[RDD[_]])) =>
@@ -197,21 +237,11 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
             asInstanceOf[HashSet[Int]]
         MyLog.info("Read Candidate RDDs from Tachyon: " + parentIds)
         for ((id, rdd) <- buildRddDependency.stageRdds) {
-//          if (parentIds.contains(rdd.id)) {
-//            MyLog.info("Candidate Stage RDD: " + rdd.id)
-//            rdd.persist(StorageLevel.fromString(storageLevel), true)
-//          }
-          // build dependency for new stage RDDs
           buildDependency2(rdd, parentIds)
         }
       } else {
         MyLog.info("Build from scratch")
         for ((id, rdd) <- buildRddDependency.stageRdds) {
-//          val t = stageRdds.values.toList.map(r => r.id)
-//          if (t.contains(rdd.id) && !candidateRDDs.contains(rdd)) {
-//            candidateRDDs.add(rdd)
-//          }
-          // build dependency for new stage RDDs
           buildDependency(rdd)
         }
       }
@@ -249,6 +279,8 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       } else {
         map.getOrElseUpdate(blockId, new HashSet[(Double, BlockStatus)]).
           add((samplingRate, blockStatus))
+        println("BlockId: " + blockId)
+        println("!!!!!" + map.get(blockId).size)
       }
 
     }
@@ -264,10 +296,10 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
         case e: TaskFailedReason => // All other failure cases
           (Some(e.toErrorString), None)
       }
-    if (!metrics.isEmpty) {
-      MyLog.info("TaskEnd Block Status: " + taskEnd.taskMetrics.blockStatus)
-      buildBlockStats(taskEnd.taskMetrics.blockStatus)
-    }
+//    if (!metrics.isEmpty) {
+//      MyLog.info("TaskEnd Block Status: " + taskEnd.taskMetrics.blockStatus)
+//      buildBlockStats(taskEnd.taskMetrics.blockStatus)
+//    }
 
     if (!metrics.isEmpty) {
       val taskMetrics = taskEnd.taskMetrics
@@ -279,24 +311,6 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
         val rddId = k.asRDDId.get
         for (yyy <- v) {
           MyLog.info(rddId.rddId + " " + rddId.splitIndex + "(" + yyy._1 + " " + yyy._2 + ")")
-        }
-      }
-      taskMetrics.inputMetrics match {
-        case Some(inputMetrics) => {
-          MyLog.info("Input Bytes Read: " + inputMetrics.bytesRead + " " +
-            "Input Records Read: " + inputMetrics.recordsRead)
-        }
-        case None => {
-
-        }
-      }
-      taskMetrics.outputMetrics match {
-        case Some(outputMetrics) => {
-          MyLog.info("Output Bytes Written: " + outputMetrics.bytesWritten +
-            " " + "Output Records Written: " +  outputMetrics.recordsWritten)
-        }
-        case None => {
-
         }
       }
     }

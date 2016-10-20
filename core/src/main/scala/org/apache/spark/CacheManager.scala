@@ -17,7 +17,7 @@
 
 package org.apache.spark
 
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{SizeEstimator, Utils}
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 import tachyon.conf.TachyonConf
@@ -38,7 +38,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
   /** Keys of RDD partitions that are being computed/loaded. */
   private val loading = new mutable.HashSet[RDDBlockId]
-  var rddResult: HashMap[BlockId, StorageLevel] = _
+  var rddResult: HashMap[BlockId, StorageLevel] = null
 
   /** Gets or computes an RDD partition. Used by RDD.iterator() when an RDD is cached. */
   def getOrCompute[T](
@@ -74,7 +74,14 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
         // Otherwise, we have to load the partition ourselves
         try {
           logInfo(s"Partition $key not found, computing it")
+          blockManager.addNumOfComputes(key)
+
+
           val computedValues = rdd.computeOrReadCheckpoint(partition, context)
+
+          val taskMetric = context.taskMetrics()
+          blockManager.addCPUTime(key, taskMetric.getCPUTime(key))
+          blockManager.addComputeTime(key, taskMetric.getComputeTime(key))
 
           // If the task is running locally, do not persist the result
           if (context.isRunningLocally) {
@@ -85,16 +92,16 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           // Otherwise, cache the values and keep track of any updates in block statuses
           val updatedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
 
-          if (context.runMode().equals(RunMode.FULL)) {
+          if (context.runMode().equals(RunMode.FULL) && rddResult == null) {
 
-            val tconf = new TachyonConf()
-            tconf.set("tachyon.master.hostname", "ip-172-31-24-220.ap-northeast-1.compute.internal")
-            tconf.set("tachyon.master.port", "19998")
-            ClientContext.reset(tconf)
-
+//            val tconf = new TachyonConf()
+//            tconf.set("tachyon.master.hostname",
+            // "ip-172-31-24-220.ap-northeast-1.compute.internal")
+//            tconf.set("tachyon.master.port", "19998")
+//            ClientContext.reset(tconf)
+            MyLog.info("Tachyon Path: " + TachyonPath.rddResult)
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
-            MyLog.info("RDD Result: " + rddResult)
           }
           var cachedValues: Iterator[T] = null
           if (context.runMode().equals(RunMode.FULL) && rddResult != null
@@ -102,14 +109,11 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             MyLog.info("Find tachyon result for " + myKey)
             cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
           } else {
-            MyLog.info(key + " persist 2 " + storageLevel +" in Cache Manager")
             cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
           }
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
-          // add by yunpingf
-          metrics.setBlockStatus(updatedBlocks.filter(x => x._1.isRDD).toSeq)
           new InterruptibleIterator(context, cachedValues)
 
         } finally {
@@ -182,12 +186,14 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
        */
       updatedBlocks ++=
         blockManager.putIterator(key, values, level, tellMaster = true, effectiveStorageLevel)
-      blockManager.get(key) match {
+      val cachedValues = blockManager.get(key) match {
         case Some(v) => v.data.asInstanceOf[Iterator[T]]
         case None =>
           logInfo(s"Failure to store $key")
           throw new BlockException(key, s"Block manager failed to return cached value for $key!")
       }
+      blockManager.addDiskSize(key, SizeEstimator.estimate(cachedValues))
+      cachedValues
     } else {
       /*
        * This RDD is to be cached in memory. In this case we cannot pass the computed values
@@ -204,10 +210,13 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           // We have successfully unrolled the entire partition, so cache it in memory
           updatedBlocks ++=
             blockManager.putArray(key, arr, level, tellMaster = true, effectiveStorageLevel)
-          arr.iterator.asInstanceOf[Iterator[T]]
+          val cachedValues = arr.iterator.asInstanceOf[Iterator[T]]
+          blockManager.addMemSize(key, SizeEstimator.estimate(cachedValues))
+          cachedValues
         case Right(it) =>
           // There is not enough space to cache this partition in memory
           val returnValues = it.asInstanceOf[Iterator[T]]
+          MyLog.info("There is not enough== blockId: " + key + " " + SizeEstimator.estimate(returnValues))
           if (putLevel.useDisk) {
             logWarning(s"Persisting partition $key to disk instead.")
             val diskOnlyLevel = StorageLevel(useDisk = true, useMemory = false,

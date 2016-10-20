@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
 
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, ListBuffer}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Random
@@ -177,8 +177,15 @@ private[spark] class BlockManager(
   private val NON_TASK_WRITER = -1024L
 
   // add by yunpingf
-  private val blockAvgSerializeTime = new HashMap[BlockId, HashSet[Long]]
-  private val blockAvgDeserializeTime = new HashMap[BlockId, HashSet[Long]]
+  private val blockAvgSerializeTime = new HashMap[BlockId, ListBuffer[Long]]
+  private val blockAvgDeserializeTime = new HashMap[BlockId, ListBuffer[Long]]
+  // Num of times that not able to be put in memory
+  val numOfComputes: HashMap[BlockId, Int] = new HashMap[BlockId, Int]
+  val blockAvgCPUTime = new HashMap[BlockId, ListBuffer[Long]]
+  val blockAvgComputeTime = new HashMap[BlockId, ListBuffer[Long]]
+  val blockMemSize = new HashMap[BlockId, ListBuffer[Long]]
+  val blockDiskSize = new HashMap[BlockId, ListBuffer[Long]]
+
   /**
    * Initializes the BlockManager with the given appId. This is not performed in the constructor as
    * the appId may not be known at BlockManager instantiation time (in particular for the driver,
@@ -255,6 +262,7 @@ private[spark] class BlockManager(
       }
     }
   }
+
 
   /**
    * Re-register with the master and report all blocks to it. This will be called by the heart beat
@@ -333,6 +341,41 @@ private[spark] class BlockManager(
       val diskSize = if (diskStore.contains(blockId)) diskStore.getSize(blockId) else 0L
       // Assume that block is not in external block store
       BlockStatus(info.level, memSize, diskSize, 0L)
+    }
+  }
+
+  def getBlockStatus(blockId: BlockId): Option[BlockStatus] = {
+    blockInfo.get(blockId).map{ info =>
+      info.level match {
+        case null =>
+          BlockStatus(StorageLevel.NONE, 0L, 0L, 0L)
+        case level =>
+          val inMem = level.useMemory && memoryStore.contains(blockId)
+          val inExternalBlockStore = level.useOffHeap && externalBlockStore.contains(blockId)
+          val onDisk = level.useDisk && diskStore.contains(blockId)
+          val deserialized = if (inMem) level.deserialized else false
+          val replication = if (inMem || inExternalBlockStore || onDisk) level.replication else 1
+          val storageLevel =
+            StorageLevel(onDisk, inMem, inExternalBlockStore, deserialized, replication)
+          val memSize = if (inMem) memoryStore.getSize(blockId) else 0L
+          val externalBlockStoreSize =
+            if (inExternalBlockStore) externalBlockStore.getSize(blockId) else 0L
+          val diskSize = if (onDisk) diskStore.getSize(blockId) else 0L
+          // add by yunpingf
+          def average(nums: ListBuffer[Long]): Long = {
+            if (nums.size == 0) return 0L
+            nums.sum / nums.size
+          }
+          val avgSerializeTime = average(blockAvgSerializeTime.getOrElseUpdate(blockId,
+            ListBuffer.empty[Long]))
+          val avgDeserializeTime = average(blockAvgDeserializeTime.
+            getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          val avgCPUTime = average(blockAvgCPUTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          val avgComputeTime =
+            average(blockAvgComputeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          BlockStatus(storageLevel, memSize, diskSize, externalBlockStoreSize,
+            avgSerializeTime, avgDeserializeTime, avgCPUTime, avgComputeTime)
+      }
     }
   }
 
@@ -416,16 +459,19 @@ private[spark] class BlockManager(
             if (inExternalBlockStore) externalBlockStore.getSize(blockId) else 0L
           val diskSize = if (onDisk) diskStore.getSize(blockId) else 0L
           // add by yunpingf
-          def average(nums: HashSet[Long]): Long = {
+          def average(nums: ListBuffer[Long]): Long = {
             if (nums.size == 0) return 0L
             nums.sum / nums.size
           }
-          val avgSerializeTime = average(blockAvgSerializeTime.
-            getOrElseUpdate(blockId, new HashSet[Long]))
+          val avgSerializeTime = average(blockAvgSerializeTime.getOrElseUpdate(blockId,
+            ListBuffer.empty[Long]))
           val avgDeserializeTime = average(blockAvgDeserializeTime.
-            getOrElseUpdate(blockId, new HashSet[Long]))
-          BlockStatus(storageLevel, memSize, diskSize,
-            externalBlockStoreSize, avgSerializeTime, avgDeserializeTime)
+            getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          val avgCPUTime = average(blockAvgCPUTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          val avgComputeTime =
+            average(blockAvgComputeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          BlockStatus(storageLevel, memSize, diskSize, externalBlockStoreSize,
+            avgSerializeTime, avgDeserializeTime, avgCPUTime, avgComputeTime)
       }
     }
   }
@@ -666,6 +712,34 @@ private[spark] class BlockManager(
     None
   }
 
+  def addNumOfComputes(blockId: BlockId): Unit = {
+    if (!numOfComputes.contains(blockId)) {
+      numOfComputes.put(blockId, 1)
+    } else {
+      val count = numOfComputes.get(blockId).get
+      numOfComputes.put(blockId, count + 1)
+    }
+    MyLog.info("BlockId: " + blockId + " Times=" + numOfComputes.get(blockId))
+  }
+
+  def addCPUTime(blockId: BlockId, time: Long): Unit = {
+    MyLog.info("ExecutorId: " + executorId + " blockId: " + blockId + " " + time)
+    blockAvgCPUTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(time)
+  }
+
+  def addComputeTime(blockId: BlockId, time: Long): Unit = {
+    MyLog.info("ExecutorId=: " + executorId + " blockId: " + blockId + " " + time)
+    blockAvgComputeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(time)
+  }
+
+  def addMemSize(blockId: BlockId, size: Long): Unit = {
+    blockMemSize.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(size)
+  }
+
+  def addDiskSize(blockId: BlockId, size: Long): Unit = {
+    blockDiskSize.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(size)
+  }
+
   def putIterator(
       blockId: BlockId,
       values: Iterator[Any],
@@ -850,19 +924,6 @@ private[spark] class BlockManager(
           "\n Disk Size: " + putBlockStatus.diskSize +
         "\n serializeTime: " + putBlockStatus.avgSerializeTime +
         "\n deserializeTime: " + putBlockStatus.avgDeserializeTime)
-//        var broadcastBlocks = Utils.readFromTachyonFile(TachyonPath.broadcastBlock, tfs)
-//        if (broadcastBlocks == null) {
-//          broadcastBlocks = new HashMap[BlockId, BlockStatus]
-//        }
-//        if (blockId.isBroadcast) {
-//          if (broadcastBlocks.asInstanceOf[HashMap[BlockId, BlockStatus]].
-//            contains(blockId)) {
-//            MyLog.info(blockId + " second time")
-//          } else {
-//            broadcastBlocks.asInstanceOf[HashMap[BlockId, BlockStatus]].put(blockId, putBlockStatus)
-//          }
-//          Utils.writeToTachyonFile(TachyonPath.broadcastBlock, broadcastBlocks, tfs, true)
-//        }
 
         if (putBlockStatus.storageLevel != StorageLevel.NONE) {
           // Now that the block is in either the memory, externalBlockStore, or disk store,
@@ -886,7 +947,7 @@ private[spark] class BlockManager(
         }
       }
     }
-    logDebug("Put block %s locally took %s".format(blockId, Utils.getUsedTimeMs(startTimeMs)))
+    logInfo("Put block %s locally took %s".format(blockId, Utils.getUsedTimeMs(startTimeMs)))
 
     // Either we're storing bytes and we asynchronously started replication, or we're storing
     // values and need to serialize and replicate them now:
@@ -1300,7 +1361,7 @@ private[spark] class BlockManager(
     val endCPUTime = Utils.computeTotalCPUTime()
     val serializeTime = endCPUTime - startCPUTime;
     MyLog.info("Serialize Time: " + serializeTime + "BlockId: " + blockId.toString)
-    blockAvgSerializeTime.getOrElseUpdate(blockId, new HashSet[Long]).add(serializeTime)
+    blockAvgSerializeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(serializeTime)
     btyeBuffer
   }
 
@@ -1318,7 +1379,7 @@ private[spark] class BlockManager(
     val deserializeTime = endCPUTime - startCPUTime;
     MyLog.info("Deserialize system time: " + (endTime - startTime))
     MyLog.info("Deserialize Time: " + deserializeTime + "BlockId: " + blockId.toString)
-    blockAvgDeserializeTime.getOrElseUpdate(blockId, new HashSet[Long]).add(deserializeTime)
+    blockAvgDeserializeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(deserializeTime)
     iter
   }
 

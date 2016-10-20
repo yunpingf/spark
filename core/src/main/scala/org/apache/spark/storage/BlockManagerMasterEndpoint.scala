@@ -24,7 +24,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
 import org.apache.spark.rpc.{RpcEndpointRef, RpcEnv, RpcCallContext, ThreadSafeRpcEndpoint}
-import org.apache.spark.{Logging, SparkConf}
+import org.apache.spark.{MyLog, Logging, SparkConf}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.scheduler._
 import org.apache.spark.storage.BlockManagerMessages._
@@ -84,8 +84,10 @@ class BlockManagerMasterEndpoint(
     case GetStorageStatus =>
       context.reply(storageStatus)
 
-    case GetBlockStatus(blockId, askSlaves) =>
+    case GetBlockStatus(blockId, askSlaves) => {
+      println("BlockManagerMaster received")
       context.reply(blockStatus(blockId, askSlaves))
+    }
 
     case GetMatchingBlockIds(filter, askSlaves) =>
       context.reply(getMatchingBlockIds(filter, askSlaves))
@@ -267,6 +269,7 @@ class BlockManagerMasterEndpoint(
      * Futures to avoid potential deadlocks. This can arise if there exists a block manager
      * that is also waiting for this master endpoint's response to a previous message.
      */
+    MyLog.info("def blockStatus in BlockManagerMasterEndpoint")
     blockManagerInfo.values.map { info =>
       val blockStatusFuture =
         if (askSlaves) {

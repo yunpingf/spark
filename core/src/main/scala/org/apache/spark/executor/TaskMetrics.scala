@@ -106,35 +106,34 @@ class TaskMetrics extends Serializable {
   * Time for serialize this task's rdd
   */
   // add by yunpingf
-  private val _blockStatus = new HashMap[BlockId, BlockStatus]
-  def setBlockStatus(status: Seq[(BlockId, BlockStatus)]): Unit = {
-    for ((blockId, blockStatus) <- status) {
-      if (_blockStatus.contains(blockId)) {
-        _blockStatus.update(blockId, blockStatus)
-      } else {
-        _blockStatus.put(blockId, blockStatus)
+  def getCPUTime(blockId: BlockId): Long = {
+    val timeOpt = _rddIdToComputeTime.get(blockId)
+    timeOpt match {
+      case Some(time) => {
+        average(time.toList.map(t => t._1))
+      }
+      case None => {
+        0L
       }
     }
   }
+  def getComputeTime(blockId: BlockId): Long = {
+    val timeOpt = _rddIdToComputeTime.get(blockId)
+    timeOpt match {
+      case Some(time) => {
+        average(time.toList.map(t => t._2))
+      }
+      case None => {
+        0L
+      }
+    }
+  }
+
   def average(nums: List[Long]): Long = {
     if (nums.size == 0) return 0L
     nums.sum / nums.size
   }
-  def blockStatus: HashMap[BlockId, BlockStatus] = {
-    for ((blockId, blockStatus) <- _blockStatus) {
-      val timeOpt = _rddIdToComputeTime.get(blockId)
-      timeOpt match {
-        case Some(time) => {
-          blockStatus.avgCpuTime = average(time.toList.map(t => t._1))
-          blockStatus.avgComputeTime = average(time.toList.map(t => t._2))
-        }
-        case None => {
 
-        }
-      }
-    }
-    _blockStatus
-  }
   /**
    * Amount of time spent serializing the task result
    */

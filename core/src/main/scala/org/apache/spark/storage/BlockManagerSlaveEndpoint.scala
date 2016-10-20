@@ -19,7 +19,7 @@ package org.apache.spark.storage
 
 import scala.concurrent.{ExecutionContext, Future}
 
-import org.apache.spark.{Logging, MapOutputTracker, SparkEnv}
+import org.apache.spark.{MyLog, Logging, MapOutputTracker, SparkEnv}
 import org.apache.spark.rpc.{RpcCallContext, RpcEnv, ThreadSafeRpcEndpoint}
 import org.apache.spark.storage.BlockManagerMessages._
 import org.apache.spark.util.{ThreadUtils, Utils}
@@ -65,8 +65,15 @@ class BlockManagerSlaveEndpoint(
         blockManager.removeBroadcast(broadcastId, tellMaster = true)
       }
 
-    case GetBlockStatus(blockId, _) =>
-      context.reply(blockManager.getStatus(blockId))
+    case GetBlockStatus(blockId, _) => {
+      MyLog.info("BlockManagerSlaveEndpoint received")
+      val opt = blockManager.getBlockStatus(blockId)
+      opt match {
+        case Some(status) => MyLog.info(status.toString)
+        case None => MyLog.info(None.toString)
+      }
+      context.reply(opt)
+    }
 
     case GetMatchingBlockIds(filter, _) =>
       context.reply(blockManager.getMatchingBlockIds(filter))
