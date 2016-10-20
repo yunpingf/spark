@@ -115,8 +115,8 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
-          new InterruptibleIterator(context, cachedValues)
           MyLog.info("End of getOrCompute() = BlockId: " + key + " Timestamp: " + System.currentTimeMillis())
+          new InterruptibleIterator(context, cachedValues)
         } finally {
           loading.synchronized {
             loading.remove(key)
