@@ -47,6 +47,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       context: TaskContext,
       storageLevel: StorageLevel): Iterator[T] = {
     val key = RDDBlockId(rdd.id, partition.index)
+    MyLog.info("Begin of getOrCompute() = BlockId: " + key + " Timestamp: " + System.currentTimeMillis())
     val myKey = RDDBlockId(rdd.id + 1, partition.index)
     logDebug(s"Looking for partition $key")
     blockManager.get(key) match {
@@ -94,11 +95,11 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           if (context.runMode().equals(RunMode.FULL) && rddResult == null) {
 
-//            val tconf = new TachyonConf()
-//            tconf.set("tachyon.master.hostname",
-            // "ip-172-31-24-220.ap-northeast-1.compute.internal")
-//            tconf.set("tachyon.master.port", "19998")
-//            ClientContext.reset(tconf)
+            val tconf = new TachyonConf()
+            tconf.set("tachyon.master.hostname",
+             "ip-172-31-24-220.ap-northeast-1.compute.internal")
+            tconf.set("tachyon.master.port", "19998")
+            ClientContext.reset(tconf)
             MyLog.info("Tachyon Path: " + TachyonPath.rddResult)
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
@@ -115,7 +116,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
           new InterruptibleIterator(context, cachedValues)
-
+          MyLog.info("End of getOrCompute() = BlockId: " + key + " Timestamp: " + System.currentTimeMillis())
         } finally {
           loading.synchronized {
             loading.remove(key)
