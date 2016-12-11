@@ -933,6 +933,7 @@ class DAGScheduler(
         if (missing.isEmpty) {
           println("Stage ID: " + stage.id + " Stage RDD ID: " + stage.rdd.id)
           logInfo("Submitting " + stage + " (" + stage.rdd + "), which has no missing parents")
+          MyLog.info("RDD this stage = " + stage.rdd.toDebugString)
           submitMissingTasks(stage, jobId.get)
         } else {
           for (parent <- missing) {

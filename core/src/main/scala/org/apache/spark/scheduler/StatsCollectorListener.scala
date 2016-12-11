@@ -46,11 +46,10 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
   var stageRdds: HashMap[Int, RDD[_]] = new HashMap[Int, RDD[_]]
   val candidateRDDs = new HashSet[RDD[_]]
   val rddToChildren = new HashMap[RDD[_], HashSet[RDD[_]]]
-  val notPersistRDDs = new HashSet[Int]
 
-  private def setTrainingStorageLevel(): Unit = {
-
-  }
+  val numOfRecords = new HashMap[BlockId, Long]
+  // stageId -> (BlockId -> (in, out))
+  val blockSelectivity = new LinkedHashMap[Int, LinkedHashMap[BlockId, (Long, Long)]]
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
 
@@ -58,18 +57,16 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
 
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
     MyLog.info("The application is about to end")
+    MyLog.info("Candidate RDDs: " + candidateRDDs)
     for (rdd <- candidateRDDs) {
-      MyLog.info("Rdd: " + rdd)
       val partitions = rdd.partitions
       for (p <- partitions) {
-        MyLog.info("Partitions: " + p)
         val blockId = new RDDBlockId(rdd.id, p.index)
         val msg = GetBlockStatus(blockId, true)
         val response = blockManagerMasterEndpoint.
           askWithRetry[Map[BlockManagerId, Future[Option[BlockStatus]]]](msg)
         val (blockManagerIds, futures) = response.unzip
         MyLog.info(blockManagerIds.toString())
-        MyLog.info(futures.toString())
         implicit val sameThread = ThreadUtils.sameThread
         val cbf =
           implicitly[
@@ -77,31 +74,83 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
               Option[BlockStatus],
               Iterable[Option[BlockStatus]]]]
         val timeout = RpcUtils.askRpcTimeout(sc.conf)
-        MyLog.info("!!!!!!!!!$$$$$")
         val blockStatus = timeout.awaitResult(
-          Future.sequence[Option[BlockStatus], Iterable](futures)(cbf, ThreadUtils.sameThread))
+          Future.sequence[Option[BlockStatus], Iterable](futures)(cbf, ThreadUtils.sameThread)).
+          filter(x => x.isDefined).map(x => x.get).head
         MyLog.info("BlockId= " + blockId + " " + blockStatus.toString())
         if (blockStatus == null) {
           throw new SparkException("BlockManager returned null for BlockStatus query: " + blockId)
         }
-        MyLog.info("No Exception")
-        val status = blockManagerIds.zip(blockStatus).flatMap { case (blockManagerId, status) =>
-          status.map { s => (blockManagerId, s) }
-        }.toMap
-        MyLog.info("Status: " + status)
-        for ((blockManagerId, blockStatus) <- status) {
-          MyLog.info("BlockManagerId: " + blockManagerId)
-          MyLog.info("BlockStatus: " + blockStatus)
-        }
+        // val blockStats = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
+        val pa = (samplingRate, blockStatus)
+        val set = new HashSet[(Double, BlockStatus)]
+        set.add(pa)
+        blockStats.get(storageLevel).get.put(blockId, set)
+
+//        val status = blockManagerIds.zip(blockStatus).flatMap { case (blockManagerId, status) =>
+//          status.map { s => (blockManagerId, s) }
+//        }.toMap
       }
     }
 
+    for ((blockId, count) <- numOfRecords){
+      MyLog.info("NumOfRecords BlockId: " + blockId + " " + count + " records")
+    }
 
+    if (runMode == RunMode.TRAINING) {
+//      val numOfRecords = new HashMap[BlockId, Int]
+//      val blockSelectivity = new LinkedHashMap[BlockId, (Long, Long)]
+//      Utils.writeToTachyonFile(TachyonPath.numOfRecords(samplingRate), numOfRecords,
+//        tfs, true)
+//      def findParent(stageId: Int, rdd: RDD[_], partition: Int): Unit = {
+//        val narrowDps = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).
+//          map(x => x.asInstanceOf[NarrowDependency[_]])
+//        val shuffleDps = rdd.dependencies.filter(_.isInstanceOf[ShuffleDependency[_, _, _]]).
+//          map(x => x.asInstanceOf[ShuffleDependency[_, _, _]])
+//        if (narrowDps.size > 0) {
+//          if (narrowDps.size > 1) {
+//            MyLog.info("RDD " + rdd.id + " has multiple parents")
+//          }
+//          val narrowDp = narrowDps.head
+//          val parentRDD = narrowDp.rdd
+//          val parentPartition = narrowDp.getParents(partition).head
+//          val key = RDDBlockId(rdd.id, partition)
+//          val parentKey = RDDBlockId(parentRDD.id, parentPartition)
+//          val records = numOfRecords.getOrElse(key, 1L)
+//          val recordsParent = numOfRecords.getOrElse(parentKey, 1L)
+//          blockSelectivity.getOrElseUpdate(stageId, new LinkedHashMap[BlockId, (Long, Long)]).
+//            put(key, (recordsParent, records))
+//          for (narrowDp <- narrowDps) {
+//            for (p <- narrowDp.getParents(partition)) {
+//              findParent(stageId, narrowDp.rdd, p)
+//            }
+//          }
+//        } else if (shuffleDps.size > 0){
+//          val key = RDDBlockId(rdd.id, partition)
+//          val records = numOfRecords.getOrElse(key, 1L)
+//          blockSelectivity.getOrElseUpdate(stageId, new LinkedHashMap[BlockId, (Long, Long)]).
+//            put(key, (0L, records))
+//        } else {
+//          MyLog.info("This RDD's selectivity " + rdd.id + " ")
+//        }
+//      }
+//      for ((stageId, stageRDD) <- stageRdds) {
+//        for (p <- stageRDD.partitions) {
+//          findParent(stageId, stageRDD, p.index)
+//        }
+//      }
+//      for ((k, v) <- blockSelectivity) {
+//        for ((k1, v1) <- v) {
+//          MyLog.info("StageId = " + k + " blockId: " + k1 + " " + v1)
+//        }
+//      }
+//      Utils.writeToTachyonFile(TachyonPath.blockSelectivity(samplingRate), blockSelectivity,
+//        tfs, true)
+    }
 
     
     if (runMode == RunMode.TRAINING && !Utils.tachyonFileExist(TachyonPath.candidateRdds, tfs)){
       MyLog.info("About to write dep")
-      println("About to write dep")
       Utils.writeToTachyonFile(getPath(), blockStats, tfs, true)
 
       val executorIdToTasks = taskScheduler.getExecutorIdToTasks()
@@ -176,9 +225,6 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
 
       Utils.writeToTachyonFile(
         TachyonPath.candidateRdds, candidateRDDs.map(p => p.id), tfs, true)
-
-//      MyLog.info("Broadcast Block")
-//      MyLog.info(Utils.readFromTachyonFile(TachyonPath.broadcastBlock, tfs).toString)
     }
     else if (runMode == RunMode.FULL){
       MyLog.info("Run Mode: " + runMode)
@@ -197,7 +243,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     runMode = buildRddDependency.runMode
     samplingRate = buildRddDependency.samplingRate.toDouble
     storageLevel = buildRddDependency.storageLevel
-
+    blockStats.put(storageLevel, new HashMap[BlockId, HashSet[(Double, BlockStatus)]])
 
     def buildDependency(rdd: RDD[_]): Unit = {
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
@@ -209,6 +255,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
             MyLog.info("RDD " + pr.id + " persist 2 " + storageLevel)
             pr.persist(StorageLevel.fromString(storageLevel), true)
             candidateRDDs.add(pr)
+            MyLog.info("Candidate RDD when building: " + candidateRDDs)
           }
         } else {
           rddToChildren.put(pr, new HashSet[RDD[_]])
@@ -222,6 +269,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
       for (pr <- parentRDDs) {
         if (parentIds.contains(pr.id)) {
+          candidateRDDs.add(pr)
           MyLog.info("RDD " + pr.id + " persist to " + storageLevel)
           pr.persist(StorageLevel.fromString(storageLevel), true)
         }
@@ -241,6 +289,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
         }
       } else {
         MyLog.info("Build from scratch")
+
         for ((id, rdd) <- buildRddDependency.stageRdds) {
           buildDependency(rdd)
         }
@@ -261,30 +310,28 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       storageLevel + "_" + samplingRate
   }
 
-  private def buildBlockStats(data: HashMap[BlockId, BlockStatus]): Unit = {
-    // HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
-    val map = blockStats.getOrElseUpdate(storageLevel,
-      new HashMap[BlockId, HashSet[(Double, BlockStatus)]])
-    for ((blockId, blockStatus) <- data) {
-      if (Utils.tachyonFileExist(TachyonPath.candidateRdds, tfs)) {
-        val parentIds =
-          Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
-            asInstanceOf[HashSet[Int]]
-        for ((blockId, blockStatus) <- data) {
-          if (blockId.isRDD && parentIds.contains(blockId.asRDDId.get.rddId)) {
-            map.getOrElseUpdate(blockId, new HashSet[(Double, BlockStatus)]).
-              add((samplingRate, blockStatus))
-          }
-        }
-      } else {
-        map.getOrElseUpdate(blockId, new HashSet[(Double, BlockStatus)]).
-          add((samplingRate, blockStatus))
-        println("BlockId: " + blockId)
-        println("!!!!!" + map.get(blockId).size)
-      }
-
-    }
-  }
+//  private def buildBlockStats(data: HashMap[BlockId, BlockStatus]): Unit = {
+//    // HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
+//    val map = blockStats.getOrElseUpdate(storageLevel,
+//      new HashMap[BlockId, HashSet[(Double, BlockStatus)]])
+//    for ((blockId, blockStatus) <- data) {
+//      if (Utils.tachyonFileExist(TachyonPath.candidateRdds, tfs)) {
+//        val parentIds =
+//          Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
+//            asInstanceOf[HashSet[Int]]
+//        for ((blockId, blockStatus) <- data) {
+//          if (blockId.isRDD && parentIds.contains(blockId.asRDDId.get.rddId)) {
+//            map.getOrElseUpdate(blockId, new HashSet[(Double, BlockStatus)]).
+//              add((samplingRate, blockStatus))
+//          }
+//        }
+//      } else {
+//        map.getOrElseUpdate(blockId, new HashSet[(Double, BlockStatus)]).
+//          add((samplingRate, blockStatus))
+//      }
+//
+//    }
+//  }
 
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
     val (errorMessage, metrics): (Option[String], Option[TaskMetrics]) =
@@ -299,6 +346,13 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
 //    if (!metrics.isEmpty) {
 //      MyLog.info("TaskEnd Block Status: " + taskEnd.taskMetrics.blockStatus)
 //      buildBlockStats(taskEnd.taskMetrics.blockStatus)
+//    }
+//    if (!metrics.isEmpty) {
+//      MyLog.info("StageId: " + taskEnd.stageId)
+//      val records = metrics.get.getRecordsCount
+//      for ((k, v) <- records) {
+//        numOfRecords.put(k, v)
+//      }
 //    }
 
     if (!metrics.isEmpty) {

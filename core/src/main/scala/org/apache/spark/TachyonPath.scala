@@ -42,6 +42,21 @@ object TachyonPath {
     "/" + folder + "candidateRdds"
   }
 
+  def stageRDDs: String = {
+    setFolder()
+    "/" + folder + "stageRDDs"
+  }
+
+  def numOfRecords(samplingRate: Double): String = {
+    setFolder()
+    "/" + folder + samplingRate + "_numOfRecords"
+  }
+
+  def blockSelectivity(samplingRate: Double): String = {
+    setFolder()
+    "/" + folder + samplingRate + "_blockSelectivity"
+  }
+
   def taskDescription: String = {
     setFolder()
     "/" + folder + "taskDescription"

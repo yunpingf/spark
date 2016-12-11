@@ -21,7 +21,7 @@ package org.apache.spark.examples
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.SparkContext._
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{MyLog, SparkConf, SparkContext}
 
 /**
   * Computes the PageRank of URLs from an input file. Input file should
@@ -57,14 +57,16 @@ object LocalPageRank {
     log.setLevel(Level.WARN)
 
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("PageRank")
-    val iters = if (args.length > 1) args(1).toInt else 2
+    val iters = if (args.length > 1) args(1).toInt else 3
     val ctx = new SparkContext(sparkConf)
     val lines = ctx.textFile(args(0), 1)
     val links = lines.map{ s =>
       val parts = s.split("\\s+")
       (parts(0), parts(1))
     }.distinct().groupByKey().cache()
+    MyLog.info("Links Size: " + links.count())
     var ranks = links.mapValues(v => 1.0)
+    MyLog.info("Ranks Size: " + ranks.count())
 
     for (i <- 1 to iters) {
       val contribs = links.join(ranks).values.flatMap{ case (urls, rank) =>

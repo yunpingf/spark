@@ -57,7 +57,7 @@ object SparkPageRank {
     val sparkConf = new SparkConf().setAppName("PageRank")
     MyLog.info("SparkPAgERank args")
     MyLog.info(args.deep.mkString(", "))
-    val iters = if (args.length > 1) args(1).toInt else 2
+    val iters = if (args.length > 1) args(1).toInt else 3
     val ctx = new SparkContext(sparkConf)
     val lines = ctx.textFile(args(0), 1)
     val links = lines.map{ s =>

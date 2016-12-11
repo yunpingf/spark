@@ -52,6 +52,7 @@ class MyObjectiveFunction(blockIdToStages: LinkedHashMap[BlockId, ArrayBuffer[In
     var time: Long = 0
     var executorMemory: Long = solution.asInstanceOf[MySolution].executorMemory
     val entries = new ArrayBuffer[BlockId]()
+    logInfo("Current Move: " + move)
     for (stageId <- startStageId to endStageId) {
       logInfo("Current Stage: " + stageId)
       // blocks in this stage, can be empty if there is no candidate blocks
@@ -90,6 +91,7 @@ class MyObjectiveFunction(blockIdToStages: LinkedHashMap[BlockId, ArrayBuffer[In
               isMem(blockId) = true
               entries.append(blockId)
               logInfo(blockId + " is put in memory")
+              executorMemory -= blockSize
             } else {
               logInfo(blockId + "can't be put in memory")
               if (storageLevels(blockId).useDisk) {
@@ -97,18 +99,21 @@ class MyObjectiveFunction(blockIdToStages: LinkedHashMap[BlockId, ArrayBuffer[In
                 time += blockStats(blockId).stats(FieldName.SER_TIME)
               }
             }
-            logInfo("Time: " + time)
+            logInfo("Time1: " + time)
             logInfo("Executor memory left: " + executorMemory)
             solution.asInstanceOf[MySolution].executorMemoryVar = executorMemory
           } else if (storageLevels(blockId).useDisk) {
             logInfo("Put " + blockId + " into disk")
             isDisk(blockId) = true
             time += blockStats(blockId).stats(FieldName.SER_TIME)
-            logInfo("Time: " + time)
+            logInfo("Time2: " + time)
+          } else {
+            logInfo("Time3: " + time)
           }
         }
       }
     }
+    logInfo("Total Time: " + time);
     return Array[Double] {
       time
     }

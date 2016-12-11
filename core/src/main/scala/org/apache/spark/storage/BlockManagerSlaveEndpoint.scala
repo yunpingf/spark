@@ -66,7 +66,7 @@ class BlockManagerSlaveEndpoint(
       }
 
     case GetBlockStatus(blockId, _) => {
-      MyLog.info("BlockManagerSlaveEndpoint received")
+      MyLog.info("BlockManagerSlaveEndpoint received = " + blockId)
       val opt = blockManager.getBlockStatus(blockId)
       opt match {
         case Some(status) => MyLog.info(status.toString)

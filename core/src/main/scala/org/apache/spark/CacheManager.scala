@@ -17,6 +17,11 @@
 
 package org.apache.spark
 
+import java.lang.management.ManagementFactory
+import java.util.concurrent.{TimeUnit, ScheduledThreadPoolExecutor}
+import javax.management.{ObjectName, Attribute}
+
+import com.sun.management.OperatingSystemMXBean
 import org.apache.spark.util.{SizeEstimator, Utils}
 import tachyon.client.file.TachyonFileSystem
 import tachyon.client.file.TachyonFileSystem.TachyonFileSystemFactory
@@ -55,6 +60,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
         // Partition is already materialized, so just return its values
         val existingMetrics = context.taskMetrics
           .getInputMetricsForReadMethod(blockResult.readMethod)
+        MyLog.info("BlockBytes Read: " + Utils.bytesToString(blockResult.bytes))
         existingMetrics.incBytesRead(blockResult.bytes)
 
         val iter = blockResult.data.asInstanceOf[Iterator[T]]
@@ -77,8 +83,39 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           logInfo(s"Partition $key not found, computing it")
           blockManager.addNumOfComputes(key)
 
+          var counter = 0
+          val ex = new ScheduledThreadPoolExecutor(1)
+          val task = new Runnable {
+            def run() = {
+              val mbs = ManagementFactory.getPlatformMBeanServer()
+              val name = ObjectName.getInstance("java.lang:type=OperatingSystem")
+              val list = mbs.getAttributes(name, Array( "ProcessCpuLoad" ))
+              if (list.isEmpty()) {
+                MyLog.info("CPU Load: " + Double.NaN)
+              } else {
+                val att = list.get(0).asInstanceOf[Attribute]
+                val value = att.getValue.asInstanceOf[Double]
+                if (value == -1.0) {
+                  MyLog.info("CPU Load: " + Double.NaN)
+                } else {
+                  MyLog.info("CPU Load: " + value)
+                }
+              }
+              counter = counter + 1
+              MyLog.info("Counter: " + counter.toString)
+            }
+          }
+//          val f = ex.scheduleAtFixedRate(task, 1, 1, TimeUnit.SECONDS)
 
+          MyLog.info("Cache Manager Start computing")
           val computedValues = rdd.computeOrReadCheckpoint(partition, context)
+
+          MyLog.info("BlockId: "  + key +
+            "CacheManager size estimator: " + SizeEstimator.estimate(rdd))
+          MyLog.info("BlockId: "  + key +
+            "CacheManager computedValue size: " + SizeEstimator.estimate(computedValues))
+//          f.cancel(false)
+          MyLog.info("Future canceled")
 
           val taskMetric = context.taskMetrics()
           blockManager.addCPUTime(key, taskMetric.getCPUTime(key))
@@ -95,11 +132,11 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           if (context.runMode().equals(RunMode.FULL) && rddResult == null) {
 
-            val tconf = new TachyonConf()
-            tconf.set("tachyon.master.hostname",
-             "ip-172-31-24-220.ap-northeast-1.compute.internal")
-            tconf.set("tachyon.master.port", "19998")
-            ClientContext.reset(tconf)
+//            val tconf = new TachyonConf()
+//            tconf.set("tachyon.master.hostname",
+//             "ip-172-31-24-220.ap-northeast-1.compute.internal")
+//            tconf.set("tachyon.master.port", "19998")
+//            ClientContext.reset(tconf)
             MyLog.info("Tachyon Path: " + TachyonPath.rddResult)
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]

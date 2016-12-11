@@ -40,42 +40,43 @@ object TabuSearch {
 
   }
 
-  def parsePoints(pointsSet: HashSet[(Double, BlockStatus)], storageLevel: StorageLevel):
-  (List[Double], HashMap[FieldName.Value, List[Double]]) = {
-    val points = pointsSet.toList
-    val x = points.map(v => v._1)
-
-    val res = new HashMap[FieldName.Value, List[Double]]()
-    for (field: FieldName.Value <- FieldName.values) {
-      val y = field match {
-        case FieldName.MEM_SIZE => {
-          if (storageLevel.equals(StorageLevel.MEMORY_ONLY)) {
-            points.map(v => v._2.memSize.toDouble)
-          } else {
-            List.empty[Double]
-          }
-        }
-        case FieldName.DISK_SIZE => {
-          if (storageLevel.equals(StorageLevel.MEMORY_ONLY_SER)) {
-            points.map(v => v._2.memSize.toDouble)
-          } else {
-            List.empty[Double]
-          }
-        }
-        case FieldName.SER_TIME => points.map(v => v._2.avgSerializeTime.toDouble)
-        case FieldName.DESER_TIME => points.map(v => v._2.avgDeserializeTime.toDouble)
-        case FieldName.CPU_TIME => points.map(v => v._2.avgCpuTime.toDouble)
-        case FieldName.COMPUTE_TIME => points.map(v => v._2.avgComputeTime.toDouble)
-      }
-      res.put(field, res.getOrElse(field, List[Double]()) ++ y)
-    }
-    (x, res)
-  }
+//  def parsePoints(pointsSet: HashSet[(Double, BlockStatus)], storageLevel: StorageLevel):
+//  (List[Double], HashMap[FieldName.Value, List[Double]]) = {
+//    val points = pointsSet.toList
+//    val x = points.map(v => v._1)
+//
+//    val res = new HashMap[FieldName.Value, List[Double]]()
+//    for (field: FieldName.Value <- FieldName.values) {
+//      val y = field match {
+//        case FieldName.MEM_SIZE => {
+//          if (storageLevel.equals(StorageLevel.MEMORY_ONLY)) {
+//            points.map(v => v._2.memSize.toDouble)
+//          } else {
+//            List.empty[Double]
+//          }
+//        }
+//        case FieldName.DISK_SIZE => {
+//          if (storageLevel.equals(StorageLevel.MEMORY_ONLY_SER)) {
+//            points.map(v => v._2.memSize.toDouble)
+//          } else {
+//            List.empty[Double]
+//          }
+//        }
+//        case FieldName.SER_TIME => points.map(v => v._2.avgSerializeTime.toDouble)
+//        case FieldName.DESER_TIME => points.map(v => v._2.avgDeserializeTime.toDouble)
+//        case FieldName.CPU_TIME => points.map(v => v._2.avgCpuTime.toDouble)
+//        case FieldName.COMPUTE_TIME => points.map(v => v._2.avgComputeTime.toDouble)
+//      }
+//      res.put(field, res.getOrElse(field, List[Double]()) ++ y)
+//    }
+//    (x, res)
+//  }
 
   def linearRegression(): Unit = {
     val data = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
     val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
     val paths = TachyonPath.trainingData()
+    System.out.println("Paths: " + paths)
     for (path <- paths) {
       val file = tfs.openIfExists(new TachyonURI(path))
       if (file != null) {
@@ -98,83 +99,123 @@ object TabuSearch {
       }
     }
     MyLog.info("Data: " + data.toString())
-
-    def predict(x: List[Double], y: HashMap[FieldName.Value, List[Double]],
-                fieldName: FieldName.Value): Long = {
-      // val model = regression.ols(parsedPoints._1, parsedPoints._2)
-      // println(model.predict(Array(1.0)))
-      val regression = new SimpleRegression()
-      val ys = y(fieldName)
-      val len = x.size
-      for (i <- 0 to len - 1) {
-        regression.addData(x(i), ys(i))
-      }
-      val avgByMe = ys.sum * 5 / ys.size
-      MyLog.info("Average value for prediction: " + avgByMe)
-      val predictVal = regression.predict(1.0).toLong
-      MyLog.info("Regression value for prediction: " + predictVal)
-      if (predictVal < 0) {
-        avgByMe.toLong
-      } else {
-        predictVal
-      }
-    }
-
     val res = new HashMap[BlockId, BlockStats]()
-    for ((storageLevel, map) <- data) {
-      // for each storageLevel
-      for ((blockId, points) <- map) {
-        // for each blockId, there are multiple samplings
-        val parsedPoints = parsePoints(points, StorageLevel.fromString(storageLevel))
-        // 0.1, 0.2, 0.3
-        val x: List[Double] = parsedPoints._1
-        // fieldName -> (0.1, 0.2, 0.3)
-        val y: HashMap[FieldName.Value, List[Double]] = parsedPoints._2
-
-
-        val stats: BlockStats = res.getOrElseUpdate(blockId, new BlockStats())
-
-        if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY)) {
-          for (field: FieldName.Value <- FieldName.values) {
-            field match {
-              case FieldName.MEM_SIZE => {
-                stats.stats.put(field, predict(x, y, field))
-              }
-              case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
-                if (stats.stats.contains(field)) {
-                  val t = predict(x, y, field) + stats.stats(field)
-                  stats.stats.update(field, t / 2)
-                } else {
-                  stats.stats.put(field, predict(x, y, field))
-                }
-              }
-              case _ => {}
-            }
-          }
-        } else if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY_SER)) {
-          for (field: FieldName.Value <- FieldName.values) {
-            field match {
-              case FieldName.DISK_SIZE | FieldName.SER_TIME |
-                   FieldName.DESER_TIME => {
-                stats.stats.put(field, predict(x, y, field))
-              }
-              case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
-                if (stats.stats.contains(field)) {
-                  val t = predict(x, y, field) + stats.stats(field)
-                  stats.stats.update(field, t / 2)
-                } else {
-                  stats.stats.put(field, predict(x, y, field))
-                }
-              }
-              case _ => {}
+    val cacheDiskSize = new HashMap[BlockId, Long]()
+    val cacheMemorySize = new HashMap[BlockId, Long]()
+    for ((storageLevel, map) <- data){
+      println(map)
+      for ((blockId, set) <- map) {
+        for ((samplingRate, blockStatus) <- set) {
+          if (samplingRate != 1.0) {
+            if (StorageLevel.fromString(storageLevel).useDisk) {
+              cacheDiskSize.put(blockId, blockStatus.diskSize)
+            } else {
+              cacheMemorySize.put(blockId, blockStatus.memSize)
             }
           }
         }
-        // val model = regression.ols(parsedPoints._1, parsedPoints._2)
-        // println(model.predict(Array(1.0)))
       }
     }
-    MyLog.info("Prediction Finished")
+    println(cacheDiskSize)
+    println(cacheMemorySize)
+
+    for ((storageLevel, map) <- data){
+      for ((blockId, set) <- map) {
+        for ((samplingRate, blockStatus) <- set) {
+          if (samplingRate != 1.0){
+
+          } else {
+            if (StorageLevel.fromString(storageLevel).useMemory){
+              val blockStats = new BlockStats()
+              val rate = cacheMemorySize.get(blockId).get * 1.0/  cacheDiskSize.get(blockId).get
+              System.out.println(rate)
+              blockStats.stats.put(FieldName.COMPUTE_TIME, blockStatus.avgComputeTime)
+              blockStats.stats.put(FieldName.CPU_TIME, blockStatus.avgCpuTime)
+              blockStats.stats.put(FieldName.MEM_SIZE, (blockStatus.memSize * rate).toLong)
+              blockStats.stats.put(FieldName.DISK_SIZE, blockStatus.memSize)
+              blockStats.stats.put(FieldName.SER_TIME, blockStatus.avgSerializeTime)
+              blockStats.stats.put(FieldName.DESER_TIME, blockStatus.avgDeserializeTime)
+              res.put(blockId, blockStats)
+            }
+          }
+        }
+      }
+    }
+//    def predict(x: List[Double], y: HashMap[FieldName.Value, List[Double]],
+//                fieldName: FieldName.Value): Long = {
+//      // val model = regression.ols(parsedPoints._1, parsedPoints._2)
+//      // println(model.predict(Array(1.0)))
+//      val regression = new SimpleRegression()
+//      val ys = y(fieldName)
+//      val len = x.size
+//      for (i <- 0 to len - 1) {
+//        regression.addData(x(i), ys(i))
+//      }
+//      val avgByMe = ys.sum * 5 / ys.size
+//      MyLog.info("Average value for prediction: " + avgByMe)
+//      val predictVal = regression.predict(1.0).toLong
+//      MyLog.info("Regression value for prediction: " + predictVal)
+//      if (predictVal < 0) {
+//        avgByMe.toLong
+//      } else {
+//        predictVal
+//      }
+//    }
+//
+//    val res = new HashMap[BlockId, BlockStats]()
+//    for ((storageLevel, map) <- data) {
+//      // for each storageLevel
+//      for ((blockId, points) <- map) {
+//        // for each blockId, there are multiple samplings
+//        val parsedPoints = parsePoints(points, StorageLevel.fromString(storageLevel))
+//        // 0.1, 0.2, 0.3
+//        val x: List[Double] = parsedPoints._1
+//        // fieldName -> (0.1, 0.2, 0.3)
+//        val y: HashMap[FieldName.Value, List[Double]] = parsedPoints._2
+//
+//
+//        val stats: BlockStats = res.getOrElseUpdate(blockId, new BlockStats())
+//
+//        if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY)) {
+//          for (field: FieldName.Value <- FieldName.values) {
+//            field match {
+//              case FieldName.MEM_SIZE => {
+//                stats.stats.put(field, predict(x, y, field))
+//              }
+//              case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
+//                if (stats.stats.contains(field)) {
+//                  val t = predict(x, y, field) + stats.stats(field)
+//                  stats.stats.update(field, t / 2)
+//                } else {
+//                  stats.stats.put(field, predict(x, y, field))
+//                }
+//              }
+//              case _ => {}
+//            }
+//          }
+//        } else if (StorageLevel.fromString(storageLevel).equals(StorageLevel.MEMORY_ONLY_SER)) {
+//          for (field: FieldName.Value <- FieldName.values) {
+//            field match {
+//              case FieldName.DISK_SIZE | FieldName.SER_TIME |
+//                   FieldName.DESER_TIME => {
+//                stats.stats.put(field, predict(x, y, field))
+//              }
+//              case FieldName.CPU_TIME | FieldName.COMPUTE_TIME => {
+//                if (stats.stats.contains(field)) {
+//                  val t = predict(x, y, field) + stats.stats(field)
+//                  stats.stats.update(field, t / 2)
+//                } else {
+//                  stats.stats.put(field, predict(x, y, field))
+//                }
+//              }
+//              case _ => {}
+//            }
+//          }
+//        }
+//        // val model = regression.ols(parsedPoints._1, parsedPoints._2)
+//        // println(model.predict(Array(1.0)))
+//      }
+//    }
     MyLog.info("Prediction unified result: " + res.toString())
 
     Utils.writeToTachyonFile(TachyonPath.rddPrediction, res, tfs, true)

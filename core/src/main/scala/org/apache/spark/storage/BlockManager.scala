@@ -338,6 +338,7 @@ private[spark] class BlockManager(
   def getStatus(blockId: BlockId): Option[BlockStatus] = {
     blockInfo.get(blockId).map { info =>
       val memSize = if (memoryStore.contains(blockId)) memoryStore.getSize(blockId) else 0L
+      MyLog.info("getStatus==Block Status: blockId== " + blockId + "MemSize=====" + Utils.bytesToString(memSize))
       val diskSize = if (diskStore.contains(blockId)) diskStore.getSize(blockId) else 0L
       // Assume that block is not in external block store
       BlockStatus(info.level, memSize, diskSize, 0L)
@@ -345,6 +346,7 @@ private[spark] class BlockManager(
   }
 
   def getBlockStatus(blockId: BlockId): Option[BlockStatus] = {
+    MyLog.info("BlockInfo: " + blockInfo)
     blockInfo.get(blockId).map{ info =>
       info.level match {
         case null =>
@@ -366,6 +368,7 @@ private[spark] class BlockManager(
             if (nums.size == 0) return 0L
             nums.sum / nums.size
           }
+          MyLog.info("getStatus==21 blockId== " + blockId + "MemSize=====" + Utils.bytesToString(memSize))
           val avgSerializeTime = average(blockAvgSerializeTime.getOrElseUpdate(blockId,
             ListBuffer.empty[Long]))
           val avgDeserializeTime = average(blockAvgDeserializeTime.
@@ -470,6 +473,7 @@ private[spark] class BlockManager(
           val avgCPUTime = average(blockAvgCPUTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
           val avgComputeTime =
             average(blockAvgComputeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+          MyLog.info("Block Status: blockId== " + blockId + "MemSize=====" + Utils.bytesToString(memSize))
           BlockStatus(storageLevel, memSize, diskSize, externalBlockStoreSize,
             avgSerializeTime, avgDeserializeTime, avgCPUTime, avgComputeTime)
       }
@@ -733,6 +737,7 @@ private[spark] class BlockManager(
   }
 
   def addMemSize(blockId: BlockId, size: Long): Unit = {
+    MyLog.info("Memory Size Added== blockId== " + blockId + " size " + size)
     blockMemSize.getOrElseUpdate(blockId, ListBuffer.empty[Long]).append(size)
   }
 
@@ -920,8 +925,8 @@ private[spark] class BlockManager(
         val putBlockStatus = getCurrentBlockStatus(blockId, putBlockInfo)
         MyLog.info("Current Block Status: \n Block Id: " + blockId +
           "\n Storage Level: " + putBlockStatus.storageLevel +
-        "\n Memory Size: " + putBlockStatus.memSize +
-          "\n Disk Size: " + putBlockStatus.diskSize +
+        "\n Memory Size: " + Utils.bytesToString(putBlockStatus.memSize) +
+          "\n Disk Size: " + Utils.bytesToString(putBlockStatus.diskSize) +
         "\n serializeTime: " + putBlockStatus.avgSerializeTime +
         "\n deserializeTime: " + putBlockStatus.avgDeserializeTime)
 

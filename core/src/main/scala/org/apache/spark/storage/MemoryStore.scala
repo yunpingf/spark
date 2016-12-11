@@ -500,6 +500,9 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
       val success = memoryManager.acquireUnrollMemory(blockId, memory, droppedBlocks)
       if (success) {
         val taskAttemptId = currentTaskAttemptId()
+        MyLog.info("MemoryStore.reserveUnrollMemoryForThisTask BlockId: " + blockId + " memory: " + Utils.bytesToString(memory));
+        MyLog.info("Dropped Blocks in MemoryStore.reserveUnrollMemoryForThisTask"
+          + droppedBlocks);
         unrollMemoryMap(taskAttemptId) = unrollMemoryMap.getOrElse(taskAttemptId, 0L) + memory
       }
       success
@@ -520,6 +523,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
           if (unrollMemoryMap(taskAttemptId) == 0) {
             unrollMemoryMap.remove(taskAttemptId)
           }
+          MyLog.info("MemoryStore.releaseUnrollMemoryForThisTask " + memoryToRelease + " bytes");
           memoryManager.releaseUnrollMemory(memoryToRelease)
         }
       }

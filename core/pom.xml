@@ -45,12 +45,31 @@
       <version>3.6</version>
     </dependency>
     <dependency>
+      <groupId>org.deeplearning4j</groupId>
+      <artifactId>deeplearning4j-core</artifactId>
+      <version>0.6.0</version>
+    </dependency>
+    <!--<dependency>-->
+      <!--<groupId>org.deeplearning4j</groupId>-->
+      <!--<artifactId>deeplearning4j-ui</artifactId>-->
+      <!--<version>0.6.0</version>-->
+    <!--</dependency>-->
+    <dependency>
+      <groupId>org.nd4j</groupId>
+      <artifactId>nd4j-native</artifactId>
+      <version>0.6.0</version>
+    </dependency>
+    <dependency>
+      <groupId>javassist</groupId>
+      <artifactId>javassist</artifactId>
+      <version>3.12.1.GA</version>
+    </dependency>
+    <dependency>
       <groupId>open-ts</groupId>
       <artifactId>open-ts</artifactId>
       <version>1.0</version>
       <scope>system</scope>
-      <!--<systemPath>/Users/fengyunping/.m2/repository/open-ts/open-ts/1.0/open-ts-1.0.jar</systemPath>-->
-      <systemPath>/root/jars/open-ts-1.0.jar</systemPath>
+      <systemPath>/Users/fengyunping/.m2/repository/open-ts/open-ts/1.0/open-ts-1.0.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
@@ -60,6 +79,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.twitter</groupId>

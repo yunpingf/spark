@@ -17,18 +17,18 @@
 
 package org.apache.spark.memory;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.spark.MyLog;
+import org.apache.spark.unsafe.memory.MemoryBlock;
+import org.apache.spark.util.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashSet;
-
-import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.spark.unsafe.memory.MemoryBlock;
-import org.apache.spark.util.Utils;
 
 /**
  * Manages the memory allocated by an individual task.
@@ -136,6 +136,7 @@ public class TaskMemoryManager {
       long required,
       MemoryMode mode,
       MemoryConsumer consumer) {
+    MyLog.info("TaskMemoryManager.acquireExecutionMemory + mode: " + mode + " consumer: " + consumer);
     assert(required >= 0);
     // If we are allocating Tungsten pages off-heap and receive a request to allocate on-heap
     // memory here, then it may not make sense to spill since that would only end up freeing
@@ -143,7 +144,9 @@ public class TaskMemoryManager {
     // optimization now in case we forget to undo it late when making changes.
     synchronized (this) {
       long got = memoryManager.acquireExecutionMemory(required, taskAttemptId, mode);
-
+      MyLog.info("TaskMemoryManager.acquireExecutionMemory required: " + Utils.bytesToString(required));
+      MyLog.info("TaskMemoryManager.acquireExecutionMemory got: " + Utils.bytesToString(got));
+      MyLog.info("TaskMemoryManager.acquireExecutionMemory consumers size: " + consumers.size());
       // Try to release memory from other consumers first, then we can reduce the frequency of
       // spilling, avoid to have too many spilled files.
       if (got < required) {

@@ -17,6 +17,8 @@
 
 package org.apache.spark
 
+import org.apache.spark.storage.BlockId
+
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import org.apache.spark.executor.TaskMetrics

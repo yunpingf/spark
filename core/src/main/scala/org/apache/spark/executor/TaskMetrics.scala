@@ -102,6 +102,22 @@ class TaskMetrics extends Serializable {
       ListBuffer.empty[(Long, Long)]).append((cpuTime, time))
   }
 
+//  val recordsCount = new HashMap[BlockId, Int]
+//  val recordSizeCount = new HashMap[Long, Long]
+//
+//  def addRecordsCount(blockId: BlockId): Unit = {
+//    if (recordsCount.contains(blockId)) {
+//      val count = recordsCount.get(blockId).get
+//      recordsCount.update(blockId, count + 1)
+//    } else {
+//      recordsCount.put(blockId, 1)
+//    }
+//  }
+//
+//  def getRecordsCount: HashMap[BlockId, Int] = {
+//    recordsCount
+//  }
+
   /**
   * Time for serialize this task's rdd
   */

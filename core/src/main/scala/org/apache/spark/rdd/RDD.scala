@@ -37,8 +37,8 @@ import org.apache.spark.partial.BoundedDouble
 import org.apache.spark.partial.CountEvaluator
 import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.util.{BoundedPriorityQueue, Utils}
+import org.apache.spark.storage.{RDDBlockId, StorageLevel}
+import org.apache.spark.util.{SizeEstimator, BoundedPriorityQueue, Utils}
 import org.apache.spark.util.collection.OpenHashMap
 import org.apache.spark.util.random.{BernoulliSampler, PoissonSampler, BernoulliCellSampler,
   SamplingUtils}
@@ -301,12 +301,27 @@ abstract class RDD[T: ClassTag](
    */
   private[spark] def computeOrReadCheckpoint(split: Partition, context: TaskContext): Iterator[T] =
   {
+    MyLog.info("RDD Compute = id: " + this.id + "_" + split.index)
     if (isCheckpointedAndMaterialized) {
       firstParent[T].iterator(split, context)
     } else {
       logWarning(this.toString + " " + split.index + " " + split.toString)
       compute(split, context)
     }
+//    val key = RDDBlockId(this.id, split.index)
+//    var cnt = 0
+//    new InterruptibleIterator[T](context, r) {
+//      override def next(): T = {
+//        context.taskMetrics().addRecordsCount(key)
+//        val n = delegate.next()
+//        if (cnt <= 5) {
+//          MyLog.info(n.toString)
+//          MyLog.info("BlockId: " + key + "Record Size: " + SizeEstimator.estimate(n.asInstanceOf[AnyRef]))
+//          cnt += 1
+//        }
+//        n
+//      }
+//    }
   }
 
   /**
@@ -444,7 +459,6 @@ abstract class RDD[T: ClassTag](
    *
    * @param weights weights for splits, will be normalized if they don't sum to 1
    * @param seed random seed
-   *
    * @return split RDDs in an array
    */
   def randomSplit(
@@ -460,6 +474,7 @@ abstract class RDD[T: ClassTag](
   /**
    * Internal method exposed for Random Splits in DataFrames. Samples an RDD given a probability
    * range.
+ *
    * @param lb lower bound to use for the Bernoulli sampler
    * @param ub upper bound to use for the Bernoulli sampler
    * @param seed the seed for the Random number generator
@@ -1407,6 +1422,7 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Returns the max of this RDD as defined by the implicit Ordering[T].
+ *
    * @return the maximum element of the RDD
    * */
   def max()(implicit ord: Ordering[T]): T = withScope {
@@ -1415,6 +1431,7 @@ abstract class RDD[T: ClassTag](
 
   /**
    * Returns the min of this RDD as defined by the implicit Ordering[T].
+ *
    * @return the minimum element of the RDD
    * */
   def min()(implicit ord: Ordering[T]): T = withScope {

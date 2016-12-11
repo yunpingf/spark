@@ -20,6 +20,7 @@ package org.apache.spark.memory
 import org.apache.spark.util.Utils
 
 import scala.collection.mutable
+import scala.collection.mutable.HashMap
 
 import org.apache.spark.{MyLog, SparkConf}
 import org.apache.spark.storage.{BlockStatus, BlockId}
@@ -60,6 +61,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
     maxMemory - storageRegionSize) {
 
   assertInvariant()
+
+  private val taskIdToExecutionMemory = new HashMap[Long, Long]()
 
   // We always maintain this invariant:
   private def assertInvariant(): Unit = {
@@ -137,7 +140,10 @@ private[spark] class UnifiedMemoryManager private[memory] (
         def computeMaxExecutionPoolSize(): Long = {
           maxMemory - math.min(storageMemoryUsed, storageRegionSize)
         }
-
+        MyLog.info("UnifiedMemoryManager.acquireExecutionMemory: numBytes" +
+          Utils.bytesToString(numBytes) + " computeMaxExecutionPoolSize: " +
+          Utils.bytesToString(computeMaxExecutionPoolSize) + " Free: " +
+          Utils.bytesToString(onHeapExecutionMemoryPool.memoryFree));
         onHeapExecutionMemoryPool.acquireMemory(
           numBytes, taskAttemptId, maybeGrowExecutionPool, computeMaxExecutionPoolSize)
 
@@ -160,6 +166,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
         s"memory limit ($maxStorageMemory bytes)")
       return false
     }
+    MyLog.info("StorageMemoryPool.memoryFree: " +
+      Utils.bytesToString(storageMemoryPool.memoryFree));
     if (numBytes > storageMemoryPool.memoryFree) {
       // There is not enough free memory in the storage pool, so try to borrow free memory from
       // the execution pool.
@@ -169,6 +177,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
       onHeapExecutionMemoryPool.decrementPoolSize(memoryBorrowedFromExecution)
       storageMemoryPool.incrementPoolSize(memoryBorrowedFromExecution)
     }
+    MyLog.info("UnifiedMemoryManager.acquireStorageMemory: " + blockId + " "
+      + Utils.bytesToString(numBytes) + " numBytes");
     storageMemoryPool.acquireMemory(blockId, numBytes, evictedBlocks)
   }
 
@@ -176,6 +186,8 @@ private[spark] class UnifiedMemoryManager private[memory] (
       blockId: BlockId,
       numBytes: Long,
       evictedBlocks: mutable.Buffer[(BlockId, BlockStatus)]): Boolean = synchronized {
+    MyLog.info("UnifiedMemoryManager.Acquire Unroll Memory " +
+      Utils.bytesToString(numBytes) + " bytes for blockId: " + blockId);
     acquireStorageMemory(blockId, numBytes, evictedBlocks)
   }
 }
@@ -212,10 +224,10 @@ object UnifiedMemoryManager {
     }
     val usableMemory = systemMemory - reservedMemory
     val memoryFraction = conf.getDouble("spark.memory.fraction", 0.75)
-    MyLog.info("ReservedMemory: " + Utils.bytesToString(reservedMemory))
-    MyLog.info("System Memory: " + Utils.bytesToString(systemMemory))
-    MyLog.info("Usable Memory: " + Utils.bytesToString(usableMemory))
-    MyLog.info("Memory Fraction: " + memoryFraction)
+    MyLog.info("UnifiedMemoryManager.ReservedMemory: " + Utils.bytesToString(reservedMemory))
+    MyLog.info("UnifiedMemoryManager.System Memory: " + Utils.bytesToString(systemMemory))
+    MyLog.info("UnifiedMemoryManager.Usable Memory: " + Utils.bytesToString(usableMemory))
+    MyLog.info("UnifiedMemoryManager.Memory Fraction: " + memoryFraction)
     (usableMemory * memoryFraction).toLong
   }
 }
