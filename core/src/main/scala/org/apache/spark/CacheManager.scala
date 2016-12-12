@@ -132,11 +132,12 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           if (context.runMode().equals(RunMode.FULL) && rddResult == null) {
 
-//            val tconf = new TachyonConf()
-//            tconf.set("tachyon.master.hostname",
-//             "ip-172-31-24-220.ap-northeast-1.compute.internal")
-//            tconf.set("tachyon.master.port", "19998")
-//            ClientContext.reset(tconf)
+            val tconf = new TachyonConf()
+            tconf.set("tachyon.master.hostname",
+             "192.168.172.105")
+            tconf.set("tachyon.master.port", "19998")
+            ClientContext.reset(tconf)
+
             MyLog.info("Tachyon Path: " + TachyonPath.rddResult)
             rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
               asInstanceOf[HashMap[BlockId, StorageLevel]]
