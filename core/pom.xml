@@ -69,7 +69,8 @@
       <artifactId>open-ts</artifactId>
       <version>1.0</version>
       <scope>system</scope>
-      <systemPath>/Users/fengyunping/.m2/repository/open-ts/open-ts/1.0/open-ts-1.0.jar</systemPath>
+      <systemPath>/home/cd/yunpingf/lib/open-ts-1.0.jar</systemPath>
+      <!--<systemPath>/Users/fengyunping/.m2/repository/open-ts/open-ts/1.0/open-ts-1.0.jar</systemPath>-->
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
