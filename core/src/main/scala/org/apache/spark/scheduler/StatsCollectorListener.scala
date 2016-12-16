@@ -298,15 +298,19 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       }
       stageRdds ++= buildRddDependency.stageRdds// stageId -> RDD
     } else {
-      val candidateRDDsToUnPersit = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
-        asInstanceOf[HashSet[RDD[_]]]
-      MyLog.info("CandidateRDDsToUnPersit: ");
-      for (r <- candidateRDDsToUnPersit) {
-        MyLog.info("CandidateRDDsToUnPersit: " +  r +" " + r.getStorageLevel);
+      if (Utils.tachyonFileExist(TachyonPath.candidateRdds, tfs)) {
+        val candidateRDDsToUnPersit = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
+          asInstanceOf[HashSet[RDD[_]]]
+        MyLog.info("CandidateRDDsToUnPersit: ");
+        for (r <- candidateRDDsToUnPersit) {
+          MyLog.info("CandidateRDDsToUnPersit: " +  r +" " + r.getStorageLevel);
+        }
       }
-      val rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
-        asInstanceOf[HashMap[BlockId, StorageLevel]]
-      MyLog.info("RDD Result: " + rddResult)
+      if (Utils.tachyonFileExist(TachyonPath.rddResult, tfs)){
+        val rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
+          asInstanceOf[HashMap[BlockId, StorageLevel]]
+        MyLog.info("RDD Result: " + rddResult)
+      }
 
     }
 
