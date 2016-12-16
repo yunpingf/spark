@@ -69,12 +69,24 @@ class BlockManagerSlaveEndpoint(
       MyLog.info("BlockManagerSlaveEndpoint received = " + blockId)
       val opt = blockManager.getBlockStatus(blockId)
       opt match {
-        case Some(status) => MyLog.info(status.toString)
-        case None => MyLog.info(None.toString)
+        case Some(status) => MyLog.info("BlockManagerSlaveEndpoint 72 = " + status.toString)
+        case None => MyLog.info("BlockManagerSlaveEndpoint 73" + None.toString)
       }
       context.reply(opt)
     }
 
+    case GetBlockStatusOhYeah(blockId, _) => {
+      MyLog.info("BlockManagerSlaveEndpoint OhYeah received = " + blockId)
+      val opt = blockManager.getBlockStatusOhYeah(blockId)
+      opt match {
+        case Some(status) => MyLog.info("BlockManagerSlaveEndpoint 82 = " + status.toString)
+        case None => MyLog.info("BlockManagerSlaveEndpoint 83" + None.toString)
+      }
+      context.reply(opt)
+    }
+    case GetExecutorMemory(_) => {
+      val opt = blockManager.memoryManager
+    }
     case GetMatchingBlockIds(filter, _) =>
       context.reply(blockManager.getMatchingBlockIds(filter))
 

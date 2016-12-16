@@ -74,7 +74,8 @@ case class SparkListenerJobStart(
 // add by yunpingf
 @DeveloperApi
 case class SparkListenerBuildRddDependency(runMode: String, samplingRate: String,
-                                           storageLevel: String, stageRdds: HashMap[Int, RDD[_]])
+                                           storageLevel: String, stageRdds: HashMap[Int, RDD[_]],
+                                           jobSubmitted: JobSubmitted)
   extends SparkListenerEvent
 
 //  add by yunpingf

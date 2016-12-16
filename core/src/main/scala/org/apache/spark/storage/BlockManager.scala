@@ -83,6 +83,7 @@ private[spark] class BlockManager(
   val diskBlockManager = new DiskBlockManager(this, conf)
 
   private val blockInfo = new TimeStampedHashMap[BlockId, BlockInfo]
+  private val blockInfoBackUp = new TimeStampedHashMap[BlockId, BlockInfo]
 
   private val futureExecutionContext = ExecutionContext.fromExecutorService(
     ThreadUtils.newDaemonCachedThreadPool("block-manager-future", 128))
@@ -380,6 +381,26 @@ private[spark] class BlockManager(
             avgSerializeTime, avgDeserializeTime, avgCPUTime, avgComputeTime)
       }
     }
+  }
+
+  def getBlockStatusOhYeah(blockId: BlockId): Option[BlockStatus] = {
+    val memSize = memoryStore.getSizeOhYeah(blockId)
+    val externalBlockStoreSize = 0L
+    val diskSize = diskStore.getSizeOhYeah(blockId)
+    // add by yunpingf
+    def average(nums: ListBuffer[Long]): Long = {
+      if (nums.size == 0) return 0L
+      nums.sum / nums.size
+    }
+    val avgSerializeTime = average(blockAvgSerializeTime.getOrElseUpdate(blockId,
+      ListBuffer.empty[Long]))
+    val avgDeserializeTime = average(blockAvgDeserializeTime.
+      getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+    val avgCPUTime = average(blockAvgCPUTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+    val avgComputeTime =
+      average(blockAvgComputeTime.getOrElseUpdate(blockId, ListBuffer.empty[Long]))
+    Option(BlockStatus(StorageLevel.NONE, memSize, diskSize, externalBlockStoreSize,
+      avgSerializeTime, avgDeserializeTime, avgCPUTime, avgComputeTime))
   }
 
   /**

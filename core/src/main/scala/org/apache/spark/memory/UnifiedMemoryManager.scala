@@ -64,6 +64,10 @@ private[spark] class UnifiedMemoryManager private[memory] (
 
   private val taskIdToExecutionMemory = new HashMap[Long, Long]()
 
+  def getTaskIdToExecutionMemory(): HashMap[Long, Long] = {
+    taskIdToExecutionMemory
+  }
+
   // We always maintain this invariant:
   private def assertInvariant(): Unit = {
     assert(onHeapExecutionMemoryPool.poolSize + storageMemoryPool.poolSize == maxMemory)
@@ -144,6 +148,12 @@ private[spark] class UnifiedMemoryManager private[memory] (
           Utils.bytesToString(numBytes) + " computeMaxExecutionPoolSize: " +
           Utils.bytesToString(computeMaxExecutionPoolSize) + " Free: " +
           Utils.bytesToString(onHeapExecutionMemoryPool.memoryFree));
+        if (taskIdToExecutionMemory.contains(taskAttemptId)){
+          val oldSize = taskIdToExecutionMemory.get(taskAttemptId).get
+          taskIdToExecutionMemory.put(taskAttemptId, oldSize + numBytes)
+        } else {
+          taskIdToExecutionMemory.put(taskAttemptId, numBytes)
+        }
         onHeapExecutionMemoryPool.acquireMemory(
           numBytes, taskAttemptId, maybeGrowExecutionPool, computeMaxExecutionPoolSize)
 

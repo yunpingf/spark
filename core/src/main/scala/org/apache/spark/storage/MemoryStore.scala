@@ -42,6 +42,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
 
   private val conf = blockManager.conf
   private val entries = new LinkedHashMap[BlockId, MemoryEntry](32, 0.75f, true)
+  private val myEntries = new LinkedHashMap[BlockId, MemoryEntry](32, 0.75f, true)
 
   // A mapping from taskAttemptId to amount of memory used for unrolling a block (in bytes)
   // All accesses of this map are assumed to have manually synchronized on `memoryManager`
@@ -84,6 +85,21 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   override def getSize(blockId: BlockId): Long = {
     entries.synchronized {
       entries.get(blockId).size
+    }
+  }
+
+  def getSizeOhYeah(blockId: BlockId): Long = {
+
+      entries.synchronized{
+        logInfo("getSizeOhYeah: MyEntries" + myEntries)
+        logInfo("getSizeOhYeah: entries" + entries)
+        if (entries.containsKey(blockId)){
+          entries.get(blockId).size
+        } else if (myEntries.containsKey(blockId)){
+          myEntries.get(blockId).size
+        } else {
+          0L
+        }
     }
   }
 
@@ -218,8 +234,12 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
   }
 
   override def remove(blockId: BlockId): Boolean = memoryManager.synchronized {
-    val entry = entries.synchronized { entries.remove(blockId) }
+    val entry = entries.synchronized {
+      entries.remove(blockId)
+    }
+
     if (entry != null) {
+      myEntries.put(blockId, entry)
       memoryManager.releaseStorageMemory(entry.size)
       logDebug(s"Block $blockId of size ${entry.size} dropped " +
         s"from memory (free ${maxMemory - blocksMemoryUsed})")
@@ -490,7 +510,8 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
 
   /**
    * Reserve memory for unrolling the given block for this task.
-   * @return whether the request is granted.
+    *
+    * @return whether the request is granted.
    */
   def reserveUnrollMemoryForThisTask(
       blockId: BlockId,

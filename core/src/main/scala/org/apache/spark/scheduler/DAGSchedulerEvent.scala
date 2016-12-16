@@ -35,6 +35,9 @@ import org.apache.spark.util.CallSite
  */
 private[scheduler] sealed trait DAGSchedulerEvent
 
+private[scheduler] case class StorageLevelReset(jobSubmittedEvent: JobSubmitted)
+  extends DAGSchedulerEvent
+
 /** A result-yielding job was submitted on a target RDD */
 private[scheduler] case class JobSubmitted(
     jobId: Int,

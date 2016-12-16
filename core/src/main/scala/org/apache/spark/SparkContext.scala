@@ -542,7 +542,7 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
     // add by yunpingf
     _statsCollectorListener =
-      new StatsCollectorListener(this, env.blockManager.master.driverEndpoint)
+      new StatsCollectorListener(this, env.blockManager.master.driverEndpoint, _dagScheduler)
     listenerBus.addListener(statsCollectorListener)
 
     // The metrics system for Driver need to be set spark.app.id to app ID.

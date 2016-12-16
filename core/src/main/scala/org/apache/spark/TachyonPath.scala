@@ -25,7 +25,7 @@ object TachyonPath {
   var folder = ""
 
   def setFolder(): Unit = {
-    folder = sys.env.get("APP_NAME").getOrElse("SparkPageRank").split('.').last
+    folder = sys.env.get("APP_NAME").getOrElse("LiveJournalPageRank").split('.').last
 //    folder = System.getProperty("spark.app.name").split('.').last
     if (folder.length != 0) {
       folder += "_"
@@ -87,5 +87,10 @@ object TachyonPath {
   def broadcastBlock: String = {
     setFolder()
     "/" + folder + "broadcastBlock"
+  }
+
+  def exeuctionMemory: String = {
+    setFolder()
+    "/" + folder + "executionMemory"
   }
 }

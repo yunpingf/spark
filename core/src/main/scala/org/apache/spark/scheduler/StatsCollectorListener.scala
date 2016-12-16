@@ -22,7 +22,7 @@ import org.apache.spark.executor.TaskMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark._
 import org.apache.spark.rpc.RpcEndpointRef
-import org.apache.spark.storage.BlockManagerMessages.{GetBlockStatus, HelloMaster}
+import org.apache.spark.storage.BlockManagerMessages.{GetBlockStatusOhYeah, GetBlockStatus, HelloMaster}
 import org.apache.spark.storage._
 import org.apache.spark.util.{RpcUtils, ThreadUtils, SizeEstimator, Utils}
 import tachyon.TachyonURI
@@ -35,7 +35,8 @@ import scala.collection.{Iterable, immutable}
 import scala.concurrent.Future
 
 // scalastyle:off println
-class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoint: RpcEndpointRef)
+class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoint: RpcEndpointRef,
+                             val dagScheduler: DAGScheduler)
   extends SparkListener with Logging {
   val tfs: TachyonFileSystem = TachyonFileSystemFactory.get()
   var runMode: String = RunMode.FULL
@@ -62,11 +63,11 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       val partitions = rdd.partitions
       for (p <- partitions) {
         val blockId = new RDDBlockId(rdd.id, p.index)
-        val msg = GetBlockStatus(blockId, true)
+        val msg = GetBlockStatusOhYeah(blockId, true)
         val response = blockManagerMasterEndpoint.
           askWithRetry[Map[BlockManagerId, Future[Option[BlockStatus]]]](msg)
         val (blockManagerIds, futures) = response.unzip
-        MyLog.info(blockManagerIds.toString())
+        MyLog.info("Block Managers Id: " + blockManagerIds.toString())
         implicit val sameThread = ThreadUtils.sameThread
         val cbf =
           implicitly[
@@ -76,13 +77,13 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
         val timeout = RpcUtils.askRpcTimeout(sc.conf)
         val blockStatus = timeout.awaitResult(
           Future.sequence[Option[BlockStatus], Iterable](futures)(cbf, ThreadUtils.sameThread)).
-          filter(x => x.isDefined).map(x => x.get).head
-        MyLog.info("BlockId= " + blockId + " " + blockStatus.toString())
+          filter(x => x.isDefined).map(x => x.get).filter(p => p.avgComputeTime != 0)
+        MyLog.info("BlockId's BlockStatuses= " + blockId + " " + blockStatus)
         if (blockStatus == null) {
           throw new SparkException("BlockManager returned null for BlockStatus query: " + blockId)
         }
         // val blockStats = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
-        val pa = (samplingRate, blockStatus)
+        val pa = (samplingRate, blockStatus.head)
         val set = new HashSet[(Double, BlockStatus)]
         set.add(pa)
         blockStats.get(storageLevel).get.put(blockId, set)
@@ -244,6 +245,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     samplingRate = buildRddDependency.samplingRate.toDouble
     storageLevel = buildRddDependency.storageLevel
     blockStats.put(storageLevel, new HashMap[BlockId, HashSet[(Double, BlockStatus)]])
+    val jobSumittedEvent = buildRddDependency.jobSubmitted
 
     def buildDependency(rdd: RDD[_]): Unit = {
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
@@ -296,6 +298,12 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       }
       stageRdds ++= buildRddDependency.stageRdds// stageId -> RDD
     } else {
+      val candidateRDDsToUnPersit = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
+        asInstanceOf[HashSet[RDD[_]]]
+      MyLog.info("CandidateRDDsToUnPersit: ");
+      for (r <- candidateRDDsToUnPersit) {
+        MyLog.info("CandidateRDDsToUnPersit: " +  r +" " + r.getStorageLevel);
+      }
       val rddResult = Utils.readFromTachyonFile(TachyonPath.rddResult, tfs).
         asInstanceOf[HashMap[BlockId, StorageLevel]]
       MyLog.info("RDD Result: " + rddResult)
@@ -303,6 +311,7 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     }
 
     blockManagerMasterEndpoint.askWithRetry[Boolean](HelloMaster("I'm Baymax"))
+    dagScheduler.eventProcessLoop.post(StorageLevelReset(jobSumittedEvent))
   }
 
   private def getPath(): String = {

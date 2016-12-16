@@ -85,9 +85,15 @@ class BlockManagerMasterEndpoint(
       context.reply(storageStatus)
 
     case GetBlockStatus(blockId, askSlaves) => {
-      println("BlockManagerMaster received")
+      logInfo("BlockManagerMaster received")
       context.reply(blockStatus(blockId, askSlaves))
     }
+
+    case GetBlockStatusOhYeah(blockId, askSlaves) => {
+      logInfo("BlockManagerMaster  OhYeah received")
+      context.reply(blockStatusOhYeah(blockId, askSlaves))
+    }
+
 
     case GetMatchingBlockIds(filter, askSlaves) =>
       context.reply(getMatchingBlockIds(filter, askSlaves))
@@ -270,6 +276,27 @@ class BlockManagerMasterEndpoint(
      * that is also waiting for this master endpoint's response to a previous message.
      */
     MyLog.info("def blockStatus in BlockManagerMasterEndpoint")
+    blockManagerInfo.values.map { info =>
+      val blockStatusFuture =
+        if (askSlaves) {
+          info.slaveEndpoint.ask[Option[BlockStatus]](getBlockStatus)
+        } else {
+          Future { info.getStatus(blockId) }
+        }
+      (info.blockManagerId, blockStatusFuture)
+    }.toMap
+  }
+
+  private def blockStatusOhYeah(
+                           blockId: BlockId,
+                           askSlaves: Boolean): Map[BlockManagerId, Future[Option[BlockStatus]]] = {
+    val getBlockStatus = GetBlockStatusOhYeah(blockId)
+    /*
+     * Rather than blocking on the block status query, master endpoint should simply return
+     * Futures to avoid potential deadlocks. This can arise if there exists a block manager
+     * that is also waiting for this master endpoint's response to a previous message.
+     */
+    MyLog.info("def blockStatusOhYeah in BlockManagerMasterEndpoint")
     blockManagerInfo.values.map { info =>
       val blockStatusFuture =
         if (askSlaves) {

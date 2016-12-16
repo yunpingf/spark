@@ -20,6 +20,7 @@ package org.apache.spark.storage
 import java.io.{IOException, File, FileOutputStream, RandomAccessFile}
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel.MapMode
+import java.util.LinkedHashMap
 
 import org.apache.spark.{MyLog, Logging}
 import org.apache.spark.serializer.Serializer
@@ -32,9 +33,17 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
   extends BlockStore(blockManager) with Logging {
 
   val minMemoryMapBytes = blockManager.conf.getSizeAsBytes("spark.storage.memoryMapThreshold", "2m")
-
+  val myEntries = new LinkedHashMap[BlockId, Long]()
   override def getSize(blockId: BlockId): Long = {
     diskManager.getFile(blockId.name).length
+  }
+
+  def getSizeOhYeah(blockId: BlockId): Long = {
+    if (myEntries.containsValue(blockId)){
+      myEntries.get(blockId)
+    } else {
+      getSize(blockId)
+    }
   }
 
   override def putBytes(blockId: BlockId, _bytes: ByteBuffer, level: StorageLevel): PutResult = {
@@ -148,6 +157,7 @@ private[spark] class DiskStore(blockManager: BlockManager, diskManager: DiskBloc
 
   override def remove(blockId: BlockId): Boolean = {
     val file = diskManager.getFile(blockId.name)
+    myEntries.put(blockId, file.length())
     if (file.exists()) {
       val ret = file.delete()
       if (!ret) {
