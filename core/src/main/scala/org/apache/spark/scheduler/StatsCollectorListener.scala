@@ -83,10 +83,12 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
           throw new SparkException("BlockManager returned null for BlockStatus query: " + blockId)
         }
         // val blockStats = new HashMap[String, HashMap[BlockId, HashSet[(Double, BlockStatus)]]]
-        val pa = (samplingRate, blockStatus.head)
-        val set = new HashSet[(Double, BlockStatus)]
-        set.add(pa)
-        blockStats.get(storageLevel).get.put(blockId, set)
+        if (blockStatus.isEmpty){
+          val pa = (samplingRate, blockStatus.head)
+          val set = new HashSet[(Double, BlockStatus)]
+          set.add(pa)
+          blockStats.get(storageLevel).get.put(blockId, set)
+        }
 
 //        val status = blockManagerIds.zip(blockStatus).flatMap { case (blockManagerId, status) =>
 //          status.map { s => (blockManagerId, s) }
