@@ -31,8 +31,7 @@ class MyMoveManager extends MoveManager {
 
     val size = storageLevels.size
     val moves = new ArrayBuffer[Move]()
-    val levels = Array[StorageLevel](StorageLevel.NONE,
-      StorageLevel.DISK_ONLY,
+    val levels = Array[StorageLevel](StorageLevel.DISK_ONLY,
       StorageLevel.MEMORY_ONLY, StorageLevel.MEMORY_ONLY_SER,
       StorageLevel.MEMORY_AND_DISK, StorageLevel.MEMORY_AND_DISK_SER)
     for ((blockId, level) <- storageLevels) {
