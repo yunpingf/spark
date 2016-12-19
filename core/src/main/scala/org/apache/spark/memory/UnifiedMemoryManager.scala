@@ -165,8 +165,11 @@ private[spark] class UnifiedMemoryManager private[memory] (
         s"memory limit ($maxStorageMemory bytes)")
       return false
     }
-    MyLog.info("StorageMemoryPool.memoryFree: " +
+    MyLog.info("UnifiedMemoryManager.StorageMemoryPool.memoryFree: " +
       Utils.bytesToString(storageMemoryPool.memoryFree));
+    MyLog.info("UnifiedMemoryManager.ExeuctionMemoryPool.memoryFree: " +
+    Utils.bytesToString(onHeapExecutionMemoryPool.memoryFree) +" usd " +
+      Utils.bytesToString(onHeapExecutionMemoryPool.memoryUsed));
     if (numBytes > storageMemoryPool.memoryFree) {
       // There is not enough free memory in the storage pool, so try to borrow free memory from
       // the execution pool.
