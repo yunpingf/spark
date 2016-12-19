@@ -122,6 +122,17 @@ object TabuSearch {
     println(cacheMemorySize.size)
     println(cacheMemorySize)
 
+    for (blockId <- cacheDiskSize.keySet){
+      if (!cacheMemorySize.contains(blockId)){
+        for (blockIdOther <- cacheMemorySize.keySet){
+          if (blockId.asRDDId.get.rddId ==
+            blockIdOther.asRDDId.get.rddId){
+            cacheMemorySize.put(blockId, cacheMemorySize.get(blockIdOther).get)
+          }
+        }
+      }
+    }
+
     for ((storageLevel, map) <- data){
       for ((blockId, set) <- map) {
         for ((samplingRate, blockStatus) <- set) {
