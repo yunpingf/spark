@@ -102,6 +102,18 @@ class TaskMetrics extends Serializable {
       ListBuffer.empty[(Long, Long)]).append((cpuTime, time))
   }
 
+  private var _taskExecutionMemory: Long = _
+  def taskExecutionMemory: Long =
+    _taskExecutionMemory
+
+  def setTaskExecutionMemory(value: Long): Unit = {
+    _taskExecutionMemory = value
+  }
+
+  def getTaskExecutionMemory(): Long = {
+    _taskExecutionMemory
+  }
+
 //  val recordsCount = new HashMap[BlockId, Int]
 //  val recordSizeCount = new HashMap[Long, Long]
 //

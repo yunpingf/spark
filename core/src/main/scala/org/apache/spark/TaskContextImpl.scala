@@ -72,6 +72,12 @@ private[spark] class TaskContextImpl(
   def setSamplingRate(samplingRate: Double): Unit =
     _samplingRate = samplingRate
 
+  private var _storageLevel: String = "MEMORY_ONLY"
+  override def storageLevel(): String = _storageLevel
+
+  def setStorageLevel(storageLevel: String): Unit =
+    _storageLevel = storageLevel
+
   override def addTaskCompletionListener(listener: TaskCompletionListener): this.type = {
     onCompleteCallbacks += listener
     this

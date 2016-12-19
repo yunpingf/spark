@@ -33,7 +33,8 @@ private[spark] class TaskDescription(
     val index: Int,    // Index within this task's TaskSet
     _serializedTask: ByteBuffer,
     val runMode: String = "full",
-    val samplingRate: Double = 1.0)
+    val samplingRate: Double = 1.0,
+    val storageLevel: String = "MEMORY_ONLY")
   extends Serializable {
 
   // Because ByteBuffers are not serializable, wrap the task in a SerializableBuffer

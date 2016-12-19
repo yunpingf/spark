@@ -117,7 +117,7 @@ private[spark] object BlockManagerMessages {
   case class GetBlockStatusOhYeah(blockId: BlockId, askSlaves: Boolean = true)
     extends ToBlockManagerMaster
 
-  case class GetExecutorMemory(askSlaves: Boolean = true)
+  case class GetExecutorMemory(taskId: Long, askSlaves: Boolean = true)
     extends ToBlockManagerMaster
 
   case class GetMatchingBlockIds(filter: BlockId => Boolean, askSlaves: Boolean = true)

@@ -97,6 +97,8 @@ public class TaskMemoryManager {
   private final MemoryManager memoryManager;
 
   private final long taskAttemptId;
+  private long maxExecutionMemory = 0;
+  private long currentExecutionMemory = 0;
 
   /**
    * Tracks whether we're in-heap or off-heap. For off-heap, we short-circuit most of these methods
@@ -145,6 +147,8 @@ public class TaskMemoryManager {
     synchronized (this) {
       long got = memoryManager.acquireExecutionMemory(required, taskAttemptId, mode);
       MyLog.info("TaskMemoryManager.acquireExecutionMemory required: " + Utils.bytesToString(required));
+      currentExecutionMemory += required;
+      maxExecutionMemory = Math.max(maxExecutionMemory, currentExecutionMemory);
       MyLog.info("TaskMemoryManager.acquireExecutionMemory got: " + Utils.bytesToString(got));
       MyLog.info("TaskMemoryManager.acquireExecutionMemory consumers size: " + consumers.size());
       // Try to release memory from other consumers first, then we can reduce the frequency of
@@ -202,6 +206,7 @@ public class TaskMemoryManager {
   public void releaseExecutionMemory(long size, MemoryMode mode, MemoryConsumer consumer) {
     logger.debug("Task {} release {} from {}", taskAttemptId, Utils.bytesToString(size), consumer);
     memoryManager.releaseExecutionMemory(size, taskAttemptId, mode);
+    currentExecutionMemory -= size;
   }
 
   /**
@@ -410,5 +415,9 @@ public class TaskMemoryManager {
    */
   public long getMemoryConsumptionForThisTask() {
     return memoryManager.getExecutionMemoryUsageForTask(taskAttemptId);
+  }
+
+  public long getMaxExcutionMemory() {
+    return this.maxExecutionMemory;
   }
 }

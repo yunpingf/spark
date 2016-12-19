@@ -81,6 +81,7 @@ private[spark] abstract class Task[T](
     TaskContext.setTaskContext(context)
     context.setRunMode(this._runMode)
     context.setSamplingRate(this._samplingRate)
+    context.setStorageLevel(this._storageLevel)
 
     context.taskMetrics.setHostname(Utils.localHostName())
     context.taskMetrics.setAccumulatorsUpdater(context.collectInternalAccumulators)
@@ -151,6 +152,14 @@ private[spark] abstract class Task[T](
     _samplingRate = samplingRate
 
   def samplingRate: Double = _samplingRate
+
+  private var _storageLevel: String = _
+
+  def setStorageLevel(storageLevel: String): Unit =
+    _storageLevel = storageLevel
+
+  def storageLevel: String = _storageLevel
+
 
   // The actual Thread on which the task is running, if any. Initialized in run().
   @volatile @transient private var taskThread: Thread = _

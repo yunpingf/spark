@@ -34,7 +34,7 @@ object MyTS {
       asInstanceOf[LinkedHashMap[String, LinkedHashMap[BlockId, ArrayBuffer[Int]]]]
     MyLog.info("!!!" + executorIdToParDep.toString())
     //1 GB to byte
-    val executorMemory: Long = (0.3 * 1024 * 1024 * 1024 * 0.75 * 0.5).toLong;
+    val executorMemory: Long = (1 * 1024 * 1024 * 1024 * 0.75 * 0.5).toLong;
     for ((executorId, blockIdToStages) <- executorIdToParDep) {
       MyLog.info("ExecutorId in Tabu Search: " + executorId)
       // Candidate blocks on this executor

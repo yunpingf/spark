@@ -183,12 +183,25 @@ abstract class RDD[T: ClassTag](
       // one that is explicitly requested by the user (after adapting it to use disk).
       persist(LocalRDDCheckpointData.transformStorageLevel(newLevel), allowOverride = true)
     } else {
-      persist(newLevel, allowOverride = false)
+      if (sc.getRunMode() == RunMode.TRAINING && sc.getCandidateIds() != null
+        && sc.getCandidateIds().contains(this.id)){
+        persist(StorageLevel.fromString(sc.getStorageLevel()), allowOverride = true)
+      } else {
+        persist(newLevel, allowOverride = false)
+      }
+
     }
   }
 
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
-  def persist(): this.type = persist(StorageLevel.MEMORY_ONLY)
+  def persist(): this.type = {
+    if (sc.getRunMode() == RunMode.TRAINING && sc.getCandidateIds() != null
+      && sc.getCandidateIds().contains(this.id)){
+      persist(StorageLevel.fromString(sc.getStorageLevel()))
+    } else {
+      persist(StorageLevel.MEMORY_ONLY)
+    }
+  }
 
   /** Persist this RDD with the default storage level (`MEMORY_ONLY`). */
   def cache(): this.type = persist()
@@ -265,11 +278,19 @@ abstract class RDD[T: ClassTag](
    * subclasses of RDD.
    */
   final def iterator(split: Partition, context: TaskContext): Iterator[T] = {
-    if (storageLevel != StorageLevel.NONE) {
-      SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
-    } else {
+    if (context.runMode() == RunMode.TRAINING && context.storageLevel() == "NONE"){
+      MyLog.info("Computing!!!!!!!2222" + this.id + "_"+split.index)
       computeOrReadCheckpoint(split, context)
     }
+    else {
+      if (storageLevel != StorageLevel.NONE) {
+        SparkEnv.get.cacheManager.getOrCompute(this, split, context, storageLevel)
+      } else {
+        MyLog.info("Computing!!!!!!! " + this.id + "_"+split.index)
+        computeOrReadCheckpoint(split, context)
+      }
+    }
+
   }
 
   /**

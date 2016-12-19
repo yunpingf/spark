@@ -93,4 +93,9 @@ object TachyonPath {
     setFolder()
     "/" + folder + "executionMemory"
   }
+
+  def storageLevel: String = {
+    setFolder()
+    "/" + folder + "storageLevel"
+  }
 }

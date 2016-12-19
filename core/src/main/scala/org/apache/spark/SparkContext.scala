@@ -1536,6 +1536,13 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     }
   }
 
+  def getExecutorMemoryStatusWithBlockManagerId: Map[BlockManagerId, (Long, Long)] = {
+    assertNotStopped()
+    env.blockManager.master.getMemoryStatus.map { case(blockManagerId, mem) =>
+      (blockManagerId, mem)
+    }
+  }
+
   /**
    * :: DeveloperApi ::
    * Return information about what RDDs are cached, if they are in mem or on disk, how much space
@@ -1858,6 +1865,17 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
 
   private[spark] def getStorageLevel(): String = {
     return getLocalProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
+  }
+  private val candidateIds: scala.collection.mutable.HashSet[Int] =
+    new scala.collection.mutable.HashSet[Int]
+  private[spark] def setCandidateIds(ids: scala.collection.mutable.HashSet[Int]):
+  scala.collection.mutable.HashSet[Int] = {
+    ids.foreach(id => candidateIds.add(id))
+    candidateIds
+  }
+
+  private[spark] def getCandidateIds(): scala.collection.mutable.HashSet[Int] = {
+    candidateIds
   }
 
   private[spark] def getTaskScheduler(): TaskSchedulerImpl = {

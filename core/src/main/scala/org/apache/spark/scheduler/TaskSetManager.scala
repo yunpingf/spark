@@ -487,8 +487,10 @@ private[spark] class TaskSetManager(
           val runMode = this.taskSet.properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
           val samplingRate =
             this.taskSet.properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE).toDouble
+          val storageLevel =
+            this.taskSet.properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
           return Some(new TaskDescription(taskId = taskId, attemptNumber = attemptNum, execId,
-            taskName, index, serializedTask, runMode, samplingRate))
+            taskName, index, serializedTask, runMode, samplingRate, storageLevel))
         }
         case _ =>
       }

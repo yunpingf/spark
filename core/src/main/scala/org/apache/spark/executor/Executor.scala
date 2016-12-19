@@ -137,9 +137,10 @@ private[spark] class Executor(
       taskName: String,
       serializedTask: ByteBuffer,
       runMode: String = "full",
-      samplingRate : Double = 1): Unit = {
+      samplingRate : Double = 1,
+      storageLevel: String = "MEMORY_ONLY"): Unit = {
     val tr = new TaskRunner(context, taskId = taskId, attemptNumber = attemptNumber, taskName,
-      serializedTask, runMode, samplingRate)
+      serializedTask, runMode, samplingRate, storageLevel)
     runningTasks.put(taskId, tr)
     threadPool.execute(tr)
   }
@@ -173,7 +174,8 @@ private[spark] class Executor(
       taskName: String,
       serializedTask: ByteBuffer,
       runMode: String = "full",
-      samplingRate: Double = 1)
+      samplingRate: Double = 1,
+      storageLevel: String = "MEMORY_ONLY")
     extends Runnable {
 
     /** Whether this task has been killed. */
@@ -231,6 +233,7 @@ private[spark] class Executor(
         // add by yunpingf
         task.setRunMode(runMode)
         task.setSamplingRate(samplingRate)
+        task.setStorageLevel(storageLevel)
 
         // Run the actual task and measure its runtime.
         taskStart = System.currentTimeMillis()
@@ -289,6 +292,7 @@ private[spark] class Executor(
           val x = m.cpuTime
           logDebug(s"CPUTime: $x")
           m.setResultSerializationTime(afterSerialization - beforeSerialization)
+          m.setTaskExecutionMemory(taskMemoryManager.getMaxExcutionMemory)
           m.updateAccumulators()
         }
 

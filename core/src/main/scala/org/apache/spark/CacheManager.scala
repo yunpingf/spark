@@ -51,8 +51,16 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       partition: Partition,
       context: TaskContext,
       storageLevel: StorageLevel): Iterator[T] = {
+    val parentIds = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
+      asInstanceOf[scala.collection.mutable.HashSet[Int]]
+    val trainingStorageLevel =
+      Utils.readFromTachyonFile(TachyonPath.storageLevel, tfs).asInstanceOf[String]
+    MyLog.info("WTF :" + rdd.id + " " + trainingStorageLevel)
+
+
     val key = RDDBlockId(rdd.id, partition.index)
-    MyLog.info("Begin of getOrCompute() = BlockId: " + key + " Timestamp: " + System.currentTimeMillis())
+    MyLog.info("Begin of getOrCompute() = BlockId: " + key +
+      "The StorageLevel in CacheManager.getOrCompute: " + storageLevel.toString)
     val myKey = RDDBlockId(rdd.id + 1, partition.index)
     logDebug(s"Looking for partition $key")
     blockManager.get(key) match {
@@ -115,6 +123,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           MyLog.info("BlockId: "  + key +
             "CacheManager computedValue size: " + SizeEstimator.estimate(computedValues))
 //          f.cancel(false)
+          MyLog.info("The storage Level is: " + rdd.getStorageLevel);
           MyLog.info("Future canceled")
 
           val taskMetric = context.taskMetrics()
@@ -129,7 +138,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
 
           // Otherwise, cache the values and keep track of any updates in block statuses
           val updatedBlocks = new ArrayBuffer[(BlockId, BlockStatus)]
-
+          MyLog.info("Tachyon Path " + sys.env.get("TACHYON_PATH").getOrElse("= ="))
           if (context.runMode().equals(RunMode.FULL) && rddResult == null) {
 
             val tconf = new TachyonConf()
@@ -148,12 +157,19 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             MyLog.info("Find tachyon result for " + myKey)
             cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
           } else {
-            cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
+            if (parentIds != null && parentIds.contains(rdd.id) &&
+            !StorageLevel.fromString(trainingStorageLevel).equals(storageLevel)){
+              rdd.persist(StorageLevel.fromString(trainingStorageLevel), true)
+              cachedValues = putInBlockManager(key, computedValues,
+                StorageLevel.fromString(trainingStorageLevel), updatedBlocks)
+
+            } else {
+              cachedValues = putInBlockManager(key, computedValues, storageLevel, updatedBlocks)
+            }
           }
           val metrics = context.taskMetrics
           val lastUpdatedBlocks = metrics.updatedBlocks.getOrElse(Seq[(BlockId, BlockStatus)]())
           metrics.updatedBlocks = Some(lastUpdatedBlocks ++ updatedBlocks.toSeq)
-          MyLog.info("End of getOrCompute() = BlockId: " + key + " Timestamp: " + System.currentTimeMillis())
           new InterruptibleIterator(context, cachedValues)
         } finally {
           loading.synchronized {

@@ -199,6 +199,8 @@ abstract class TaskContext extends Serializable {
 
   private[spark] def samplingRate(): Double
 
+  private[spark] def storageLevel(): String
+
   /**
    * Register an accumulator that belongs to this task. Accumulators must call this method when
    * deserializing in executors.

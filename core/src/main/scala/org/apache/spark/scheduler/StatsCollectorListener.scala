@@ -246,18 +246,27 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     runMode = buildRddDependency.runMode
     samplingRate = buildRddDependency.samplingRate.toDouble
     storageLevel = buildRddDependency.storageLevel
+    Utils.writeToTachyonFile(TachyonPath.storageLevel, storageLevel, tfs, true)
+
     blockStats.put(storageLevel, new HashMap[BlockId, HashSet[(Double, BlockStatus)]])
     val jobSumittedEvent = buildRddDependency.jobSubmitted
 
     def buildDependency(rdd: RDD[_]): Unit = {
+      if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
+        rdd.unpersist()
+      }
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
       for (pr <- parentRDDs) {
         if (rddToChildren.contains(pr)) {
           rddToChildren.get(pr).get.add(rdd)
           if (runMode == RunMode.TRAINING &&
             rddToChildren.get(pr).get.size > 1 && !candidateRDDs.contains(pr)) {
-            MyLog.info("RDD " + pr.id + " persist 2 " + storageLevel)
-            pr.persist(StorageLevel.fromString(storageLevel), true)
+            MyLog.info("RDD " + pr.id + " persist 2 " + storageLevel + " original level: " + pr.getStorageLevel)
+//            if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
+//              pr.unpersist()
+//            } else {
+//              pr.persist(StorageLevel.fromString(storageLevel), true)
+//            }
             candidateRDDs.add(pr)
             MyLog.info("Candidate RDD when building: " + candidateRDDs)
           }
@@ -270,12 +279,22 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     }
 
     def buildDependency2(rdd: RDD[_], parentIds: HashSet[Int]): Unit = {
+      if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
+        rdd.unpersist()
+      }
+      
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
       for (pr <- parentRDDs) {
         if (parentIds.contains(pr.id)) {
           candidateRDDs.add(pr)
-          MyLog.info("RDD " + pr.id + " persist to " + storageLevel)
-          pr.persist(StorageLevel.fromString(storageLevel), true)
+          MyLog.info("RDD " + pr.id + " persist to " + storageLevel +
+            " original level: " + pr.getStorageLevel)
+//          if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
+//            pr.unpersist()
+//          } else {
+//            pr.persist(StorageLevel.fromString(storageLevel), true)
+//          }
+
         }
         buildDependency2(pr, parentIds)
       }
@@ -288,12 +307,12 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
           Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
             asInstanceOf[HashSet[Int]]
         MyLog.info("Read Candidate RDDs from Tachyon: " + parentIds)
+        sc.setCandidateIds(parentIds)
         for ((id, rdd) <- buildRddDependency.stageRdds) {
           buildDependency2(rdd, parentIds)
         }
       } else {
         MyLog.info("Build from scratch")
-
         for ((id, rdd) <- buildRddDependency.stageRdds) {
           buildDependency(rdd)
         }
@@ -374,14 +393,19 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
       val taskMetrics = taskEnd.taskMetrics
       val taskInfo = taskEnd.taskInfo
       MyLog.info("=====Task id: " + taskInfo.taskId + " " +
-        "Executor id: " + taskInfo.executorId + "=====")
-      val xxx = taskMetrics.rddIdToComputeTime;
-      for ((k, v) <- xxx) {
-        val rddId = k.asRDDId.get
-        for (yyy <- v) {
-          MyLog.info(rddId.rddId + " " + rddId.splitIndex + "(" + yyy._1 + " " + yyy._2 + ")")
-        }
-      }
+        "Executor id: " + taskInfo.executorId + "=====" +
+        "TaskExecutionMemory " + Utils.bytesToString(metrics.get.getTaskExecutionMemory()))
+    }
+    if (!sc.isStopped){
+      val storageMemUsed = sc.getExecutorStorageStatus.map(s => s.blockManagerId.executorId +" "+
+        Utils.bytesToString(s.memUsed))
+      val totalMem = sc.getExecutorMemoryStatusWithBlockManagerId.
+        mapValues(s => Utils.bytesToString(s._1))
+      val totalMemRemaining = sc.getExecutorMemoryStatusWithBlockManagerId.
+        mapValues(s => Utils.bytesToString(s._2))
+      MyLog.info("StorageMemoryUsed: " + storageMemUsed)
+      MyLog.info("Total Mem: " + totalMem)
+      MyLog.info("Mem Remaining: " + totalMemRemaining)
     }
 
   }

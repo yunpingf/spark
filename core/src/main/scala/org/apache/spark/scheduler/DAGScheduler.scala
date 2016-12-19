@@ -581,11 +581,44 @@ class DAGScheduler(
     assert(partitions.size > 0)
     val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
     val waiter = new JobWaiter(this, jobId, partitions.size, resultHandler)
-    eventProcessLoop.post(JobSubmitted(
+
+
+    val jobSubmittedEvent = JobSubmitted(
       jobId, rdd, func2, partitions.toArray, callSite, waiter,
-      SerializationUtils.clone(properties)))
+      SerializationUtils.clone(properties))
+
+    try {
+      // New stage creation may throw an exception if, for example, jobs are run on a
+      // HadoopRDD whose underlying HDFS files have been deleted.
+      val finalStage = newResultStage(rdd, func2, partitions.toArray, jobId, callSite)
+    } catch {
+      case e: Exception =>
+        logWarning("Creating new stage failed due to exception - job: " + jobId, e)
+        waiter.jobFailed(e)
+    }
+
+    val stageIds = jobIdToStageIds(jobId).toArray
+
+    // add by yunpingf
+    val runMode = properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
+    if (runMode == RunMode.TRAINING || runMode == RunMode.FULL) {
+      val samplingRate = properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE)
+      val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
+      val stageRdds = stageIds.map(id => (id, stageIdToStage.get(id).map(_.rdd).get)).
+        foldLeft(new HashMap[Int, RDD[_]]())((m, item: (Int, RDD[_])) => m += item)
+      listenerBus.post(
+        SparkListenerBuildRddDependency(runMode, samplingRate, storageLevel, stageRdds,
+          jobSubmittedEvent))
+    }
+
     waiter
   }
+
+  def handleStorageLevelReset(jobSubmiitedEvent: JobSubmitted): Unit = {
+    MyLog.info("RESET RECEIVED!!!!!!!!")
+    eventProcessLoop.post(jobSubmiitedEvent)
+  }
+
 
   /**
    * Run an action job on the given RDD and pass all the results to the resultHandler function as
@@ -851,50 +884,6 @@ class DAGScheduler(
     logInfo("Parents of final stage: " + finalStage.parents)
     logInfo("Missing parents: " + getMissingParentStages(finalStage))
 
-
-    val stageIds = jobIdToStageIds(jobId).toArray
-
-    // add by yunpingf
-    val runMode = properties.getProperty(SparkContext.SPARK_JOB_RUN_MODE)
-    if (runMode == RunMode.TRAINING || runMode == RunMode.FULL) {
-      val samplingRate = properties.getProperty(SparkContext.SPARK_JOB_SAMPLING_RATE)
-      val storageLevel = properties.getProperty(SparkContext.SPARK_JOB_STORAGE_LEVEL)
-      val stageRdds = stageIds.map(id => (id, stageIdToStage.get(id).map(_.rdd).get)).
-        foldLeft(new HashMap[Int, RDD[_]]())((m, item: (Int, RDD[_])) => m += item)
-      listenerBus.post(
-        SparkListenerBuildRddDependency(runMode, samplingRate, storageLevel, stageRdds,
-          jobSubmitted))
-    }
-  }
-
-  private[scheduler] def handleJobSubmittedNew(jobId: Int,
-                                            finalRDD: RDD[_],
-                                            func: (TaskContext, Iterator[_]) => _,
-                                            partitions: Array[Int],
-                                            callSite: CallSite,
-                                            listener: JobListener,
-                                            properties: Properties) {
-    logInfo("RESET EVENT RECIEVED!!!!!!!!!!!!!!")
-    var finalStage: ResultStage = null
-    try {
-      // New stage creation may throw an exception if, for example, jobs are run on a
-      // HadoopRDD whose underlying HDFS files have been deleted.
-      finalStage = newResultStage(finalRDD, func, partitions, jobId, callSite)
-    } catch {
-      case e: Exception =>
-        logWarning("Creating new stage failed due to exception - job: " + jobId, e)
-        listener.jobFailed(e)
-        return
-    }
-
-    val job = new ActiveJob(jobId, finalStage, callSite, listener, properties)
-    clearCacheLocs()
-    logInfo("Got job %s (%s) with %d output partitions".format(
-      job.jobId, callSite.shortForm, partitions.length))
-    logInfo("Final stage: " + finalStage + " (" + finalStage.name + ")")
-    logInfo("Parents of final stage: " + finalStage.parents)
-    logInfo("Missing parents: " + getMissingParentStages(finalStage))
-
     val jobSubmissionTime = clock.getTimeMillis()
     jobIdToActiveJob(jobId) = job
     activeJobs += job
@@ -909,7 +898,6 @@ class DAGScheduler(
 
     submitWaitingStages()
   }
-
 
 
   private[scheduler] def handleMapStageSubmitted(jobId: Int,
@@ -1661,8 +1649,8 @@ private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler
     case JobSubmitted(jobId, rdd, func, partitions, callSite, listener, properties) =>
       dagScheduler.handleJobSubmitted(jobId, rdd, func, partitions, callSite, listener, properties,
         event.asInstanceOf[JobSubmitted])
-    case StorageLevelReset(JobSubmitted(jobId, rdd, func, partitions, callSite, listener, properties)) =>
-      dagScheduler.handleJobSubmittedNew(jobId, rdd, func, partitions, callSite, listener, properties)
+    case StorageLevelReset(event) =>
+      dagScheduler.handleStorageLevelReset(event.asInstanceOf[JobSubmitted])
     case MapStageSubmitted(jobId, dependency, callSite, listener, properties) =>
       dagScheduler.handleMapStageSubmitted(jobId, dependency, callSite, listener, properties)
 

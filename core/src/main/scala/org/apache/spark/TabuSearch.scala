@@ -116,7 +116,10 @@ object TabuSearch {
         }
       }
     }
+    println(cacheDiskSize.size)
     println(cacheDiskSize)
+    System.out.println("= =");
+    println(cacheMemorySize.size)
     println(cacheMemorySize)
 
     for ((storageLevel, map) <- data){

@@ -84,7 +84,7 @@ class BlockManagerSlaveEndpoint(
       }
       context.reply(opt)
     }
-    case GetExecutorMemory(_) => {
+    case GetExecutorMemory(taskId, _) => {
       val opt = blockManager.memoryManager
     }
     case GetMatchingBlockIds(filter, _) =>

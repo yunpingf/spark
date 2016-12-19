@@ -84,6 +84,7 @@ private[spark] class MemoryStore(blockManager: BlockManager, memoryManager: Memo
 
   override def getSize(blockId: BlockId): Long = {
     entries.synchronized {
+      myEntries.put(blockId, entries.get(blockId))
       entries.get(blockId).size
     }
   }
