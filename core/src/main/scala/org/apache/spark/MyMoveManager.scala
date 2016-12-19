@@ -41,8 +41,7 @@ class MyMoveManager extends MoveManager {
         val ifContinue = (level.equals(StorageLevel.MEMORY_ONLY) && executorMemoryVar > 0
           && lev.equals(StorageLevel.MEMORY_AND_DISK)) ||
           (level.equals(StorageLevel.MEMORY_ONLY_SER) && executorMemoryVar > 0
-            && lev.equals(StorageLevel.MEMORY_AND_DISK_SER)) ||
-          (level.useMemory && executorMemoryVar > 0)
+            && lev.equals(StorageLevel.MEMORY_AND_DISK_SER))
         if (!ifContinue) {
           moves.append(new MyMove(blockId, lev))
         }
