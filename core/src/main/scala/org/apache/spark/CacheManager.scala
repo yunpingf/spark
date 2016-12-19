@@ -51,12 +51,6 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
       partition: Partition,
       context: TaskContext,
       storageLevel: StorageLevel): Iterator[T] = {
-    val parentIds = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
-      asInstanceOf[scala.collection.mutable.HashSet[Int]]
-    val trainingStorageLevel =
-      Utils.readFromTachyonFile(TachyonPath.storageLevel, tfs).asInstanceOf[String]
-    MyLog.info("WTF :" + rdd.id + " " + trainingStorageLevel)
-
 
     val key = RDDBlockId(rdd.id, partition.index)
     MyLog.info("Begin of getOrCompute() = BlockId: " + key +
@@ -157,6 +151,18 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
             MyLog.info("Find tachyon result for " + myKey)
             cachedValues = putInBlockManager(key, computedValues, rddResult(myKey), updatedBlocks)
           } else {
+            val tconf = new TachyonConf()
+            tconf.set("tachyon.master.hostname",
+              "192.168.172.105")
+            tconf.set("tachyon.master.port", "19998")
+            ClientContext.reset(tconf)
+
+            val parentIds = Utils.readFromTachyonFile(TachyonPath.candidateRdds, tfs).
+              asInstanceOf[scala.collection.mutable.HashSet[Int]]
+            val trainingStorageLevel =
+              Utils.readFromTachyonFile(TachyonPath.storageLevel, tfs).asInstanceOf[String]
+            MyLog.info("WTF :" + rdd.id + " " + trainingStorageLevel)
+
             if (parentIds != null && parentIds.contains(rdd.id) &&
             !StorageLevel.fromString(trainingStorageLevel).equals(storageLevel)){
               rdd.persist(StorageLevel.fromString(trainingStorageLevel), true)
