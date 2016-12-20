@@ -117,7 +117,7 @@ private[spark] class CacheManager(blockManager: BlockManager) extends Logging {
           MyLog.info("BlockId: "  + key +
             "CacheManager computedValue size: " + SizeEstimator.estimate(computedValues))
 //          f.cancel(false)
-          MyLog.info("The storage Level is: " + rdd.getStorageLevel);
+          MyLog.info("The storage Level is: " + (rdd == null));
           MyLog.info("Future canceled")
 
           val taskMetric = context.taskMetrics()
