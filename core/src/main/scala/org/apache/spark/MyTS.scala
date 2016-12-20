@@ -33,8 +33,9 @@ object MyTS {
     val executorIdToParDep = Utils.readFromTachyonFile(TachyonPath.executorIdToParDep, tfs).
       asInstanceOf[LinkedHashMap[String, LinkedHashMap[BlockId, ArrayBuffer[Int]]]]
     MyLog.info("!!!" + executorIdToParDep.toString())
-    //1 GB to byte
-    val executorMemory: Long = (1 * 1024 * 1024 * 1024 * 0.75 * 0.5).toLong;
+    // 1 GB to byte
+    val msize = args(0).toDouble
+    val executorMemory: Long = (msize * 1024 * 1024 * 1024 * 0.75 * 0.5).toLong;
     for ((executorId, blockIdToStages) <- executorIdToParDep) {
       MyLog.info("ExecutorId in Tabu Search: " + executorId)
       // Candidate blocks on this executor

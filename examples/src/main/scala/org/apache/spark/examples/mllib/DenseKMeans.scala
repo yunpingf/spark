@@ -22,7 +22,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.rdd.RDD
 import scopt.OptionParser
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{MyLog, SparkConf, SparkContext}
 import org.apache.spark.mllib.clustering.KMeans
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.Vector
@@ -50,6 +50,8 @@ object DenseKMeans {
       initializationMode: InitializationMode = Parallel) extends AbstractParams[Params]
 
   def main(args: Array[String]) {
+    val start = System.currentTimeMillis
+
     val defaultParams = Params()
 
     val parser = new OptionParser[Params]("DenseKMeans") {
@@ -73,6 +75,10 @@ object DenseKMeans {
 
     parser.parse(args, defaultParams).map { params =>
       run(params)
+
+      val end = System.currentTimeMillis
+      MyLog.info("Execution Time: " + (end - start))
+
     }.getOrElse {
       sys.exit(1)
     }
