@@ -56,7 +56,7 @@ object MyTS {
         false) // maximizing = yes/no; false means minimizing
 
       // Start solving
-      tabuSearch.setIterationsToGo(1)
+      tabuSearch.setIterationsToGo(10)
       tabuSearch.startSolving()
 
       // Show solution

@@ -254,9 +254,6 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     def buildDependency(rdd: RDD[_]): Unit = {
       if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
         rdd.unpersist()
-      } else {
-        MyLog.info("Persist All: " + rdd.id)
-        rdd.persist(StorageLevel.fromString(storageLevel), true)
       }
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
       for (pr <- parentRDDs) {
@@ -284,9 +281,6 @@ class StatsCollectorListener(val sc: SparkContext, val blockManagerMasterEndpoin
     def buildDependency2(rdd: RDD[_], parentIds: HashSet[Int]): Unit = {
       if (StorageLevel.fromString(storageLevel).equals(StorageLevel.NONE)){
         rdd.unpersist()
-      } else {
-        MyLog.info("Persist All2: " + rdd.id)
-        rdd.persist(StorageLevel.fromString(storageLevel), true)
       }
 
       val parentRDDs = rdd.dependencies.filter(_.isInstanceOf[NarrowDependency[_]]).map(_.rdd)
